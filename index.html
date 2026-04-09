@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CronoMed — Cronograma para Residência Médica</title>
+  <meta name="description" content="O cronograma inteligente para quem quer passar na residência estudando por conta própria. Por apenas R$29,90." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --green:    #00c27a;
+      --green-d:  #009f64;
+      --green-xl: #e6fff5;
+      --dark:     #0a0f0d;
+      --dark2:    #111a15;
+      --mid:      #1e2e25;
+      --text:     #e8f0eb;
+      --muted:    #7a9e8a;
+      --white:    #ffffff;
+      --gold:     #f5c842;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--dark);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ─── NOISE TEXTURE ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── TYPOGRAPHY ─── */
+    h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; line-height: 1.1; }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.2rem 5vw;
+      background: rgba(10,15,13,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(0,194,122,0.1);
+    }
+
+    .logo {
+      font-family: 'Fraunces', serif;
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--white);
+      letter-spacing: -0.03em;
+    }
+    .logo span { color: var(--green); }
+
+    .nav-cta {
+      background: var(--green);
+      color: var(--dark);
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.6rem 1.4rem;
+      border-radius: 100px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .nav-cta:hover { background: var(--green-d); transform: translateY(-1px); }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8rem 5vw 5rem;
+      overflow: hidden;
+    }
+
+    .hero-glow {
+      position: absolute;
+      width: 700px; height: 700px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,194,122,0.18) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(0,194,122,0.12);
+      border: 1px solid rgba(0,194,122,0.3);
+      color: var(--green);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.4rem 1rem;
+      border-radius: 100px;
+      margin-bottom: 2rem;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 900;
+      color: var(--white);
+      max-width: 900px;
+      margin-bottom: 1.5rem;
+      animation: fadeUp 0.6s 0.1s ease both;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--green);
+    }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--muted);
+      max-width: 580px;
+      line-height: 1.7;
+      margin-bottom: 3rem;
+      font-weight: 300;
+      animation: fadeUp 0.6s 0.2s ease both;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.6s 0.3s ease both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--green);
+      color: var(--dark);
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 1rem 2.2rem;
+      border-radius: 100px;
+      text-decoration: none;
+      transition: all 0.25s;
+      box-shadow: 0 0 40px rgba(0,194,122,0.3);
+    }
+    .btn-primary:hover {
+      background: var(--green-d);
+      transform: translateY(-2px);
+      box-shadow: 0 0 60px rgba(0,194,122,0.45);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: transparent;
+      color: var(--text);
+      font-weight: 500;
+      font-size: 1rem;
+      padding: 1rem 2rem;
+      border-radius: 100px;
+      border: 1px solid rgba(255,255,255,0.15);
+      text-decoration: none;
+      transition: all 0.25s;
+    }
+    .btn-secondary:hover { border-color: var(--green); color: var(--green); }
+
+    .hero-stats {
+      display: flex;
+      gap: 3rem;
+      margin-top: 4rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.6s 0.4s ease both;
+    }
+    .hero-stat span {
+      display: block;
+      font-family: 'Fraunces', serif;
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: var(--white);
+    }
+    .hero-stat p {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ─── MOCKUP PREVIEW ─── */
+    .preview-section {
+      position: relative;
+      padding: 2rem 5vw 6rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    .mockup-frame {
+      width: 100%;
+      max-width: 1000px;
+      background: var(--mid);
+      border-radius: 20px;
+      border: 1px solid rgba(0,194,122,0.2);
+      overflow: hidden;
+      box-shadow: 0 60px 120px rgba(0,0,0,0.6), 0 0 80px rgba(0,194,122,0.08);
+    }
+
+    .mockup-bar {
+      background: var(--dark2);
+      padding: 0.8rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .mockup-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+    .mockup-dot:nth-child(1) { background: #ff5f57; }
+    .mockup-dot:nth-child(2) { background: #febc2e; }
+    .mockup-dot:nth-child(3) { background: #28c840; }
+
+    .mockup-url {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin: 0 1rem;
+    }
+
+    .mockup-inner {
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 1.5rem;
+      min-height: 340px;
+    }
+
+    .mock-sidebar {
+      background: var(--dark2);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .mock-nav-item {
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .mock-nav-item.active {
+      background: rgba(0,194,122,0.15);
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .mock-content { display: flex; flex-direction: column; gap: 1rem; }
+
+    .mock-header {
+      font-family: 'Fraunces', serif;
+      font-size: 1.1rem;
+      color: var(--white);
+      font-weight: 700;
+    }
+
+    .mock-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.8rem;
+    }
+
+    .mock-card {
+      background: var(--dark2);
+      border-radius: 10px;
+      padding: 1rem;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .mock-card-label {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      margin-bottom: 0.4rem;
+    }
+
+    .mock-card-val {
+      font-family: 'Fraunces', serif;
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--white);
+    }
+    .mock-card-val.green { color: var(--green); }
+
+    .mock-tasks { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .mock-task {
+      background: var(--dark2);
+      border-radius: 8px;
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      font-size: 0.75rem;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .mock-check {
+      width: 16px; height: 16px;
+      border-radius: 4px;
+      border: 2px solid rgba(255,255,255,0.2);
+      flex-shrink: 0;
+    }
+    .mock-check.done { background: var(--green); border-color: var(--green); }
+
+    .mock-tag {
+      margin-left: auto;
+      background: rgba(0,194,122,0.12);
+      color: var(--green);
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .mock-tag.red { background: rgba(255,80,80,0.12); color: #ff6b6b; }
+
+    /* ─── SECTIONS SHARED ─── */
+    section { position: relative; z-index: 1; }
+
+    .section-label {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1rem;
+    }
+
+    /* ─── HOW IT WORKS ─── */
+    .how {
+      padding: 6rem 5vw;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .how h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      color: var(--white);
+      margin-bottom: 1rem;
+    }
+
+    .how-sub {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 520px;
+      line-height: 1.7;
+      margin-bottom: 4rem;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2rem;
+    }
+
+    .step {
+      position: relative;
+      padding: 2rem;
+      background: var(--dark2);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .step:hover { border-color: rgba(0,194,122,0.3); transform: translateY(-4px); }
+
+    .step-num {
+      font-family: 'Fraunces', serif;
+      font-size: 3rem;
+      font-weight: 900;
+      color: rgba(0,194,122,0.15);
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+
+    .step h3 {
+      font-size: 1.1rem;
+      color: var(--white);
+      margin-bottom: 0.5rem;
+    }
+
+    .step p {
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ─── FEATURES ─── */
+    .features {
+      padding: 6rem 5vw;
+      background: var(--dark2);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .features-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .features h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      color: var(--white);
+      margin-bottom: 0.8rem;
+    }
+
+    .features-sub {
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 3.5rem;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feature-card {
+      padding: 1.8rem;
+      background: var(--mid);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .feature-card:hover { border-color: rgba(0,194,122,0.25); transform: translateY(-3px); }
+
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      color: var(--white);
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ─── TESTIMONIAL ─── */
+    .testimonial-section {
+      padding: 7rem 5vw;
+      max-width: 900px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .quote-mark {
+      font-family: 'Fraunces', serif;
+      font-size: 6rem;
+      color: var(--green);
+      line-height: 0.5;
+      opacity: 0.4;
+      margin-bottom: 1.5rem;
+    }
+
+    .testimonial-text {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(1.3rem, 3vw, 2rem);
+      font-weight: 300;
+      font-style: italic;
+      color: var(--white);
+      line-height: 1.6;
+      margin-bottom: 2.5rem;
+    }
+
+    .testimonial-text strong {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--green);
+    }
+
+    .author-block {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    .author-avatar {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--green), var(--green-d));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Fraunces', serif;
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: var(--dark);
+      border: 2px solid rgba(0,194,122,0.4);
+    }
+
+    .author-info { text-align: left; }
+    .author-name { font-weight: 700; color: var(--white); font-size: 0.95rem; }
+    .author-role { font-size: 0.8rem; color: var(--muted); }
+
+    /* ─── PRICING ─── */
+    .pricing {
+      padding: 6rem 5vw;
+      background: var(--dark2);
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .pricing-inner {
+      max-width: 500px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .pricing h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      color: var(--white);
+      margin-bottom: 0.8rem;
+    }
+
+    .pricing-sub {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .pricing-card {
+      background: var(--mid);
+      border-radius: 24px;
+      border: 1px solid rgba(0,194,122,0.3);
+      padding: 3rem 2.5rem;
+      box-shadow: 0 0 80px rgba(0,194,122,0.08);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pricing-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green), var(--green-d));
+    }
+
+    .pricing-badge {
+      display: inline-block;
+      background: rgba(0,194,122,0.15);
+      color: var(--green);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.9rem;
+      border-radius: 100px;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(0,194,122,0.25);
+    }
+
+    .price-display {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0.2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .price-currency {
+      font-family: 'Fraunces', serif;
+      font-size: 1.5rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+
+    .price-amount {
+      font-family: 'Fraunces', serif;
+      font-size: 5rem;
+      font-weight: 900;
+      color: var(--white);
+      line-height: 1;
+    }
+
+    .price-desc {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .price-includes {
+      list-style: none;
+      margin-bottom: 2.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      text-align: left;
+    }
+
+    .price-includes li {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+
+    .price-includes li::before {
+      content: '✓';
+      width: 20px; height: 20px;
+      background: rgba(0,194,122,0.15);
+      color: var(--green);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+
+    .btn-buy {
+      display: block;
+      width: 100%;
+      background: var(--green);
+      color: var(--dark);
+      font-weight: 700;
+      font-size: 1.05rem;
+      padding: 1.1rem;
+      border-radius: 100px;
+      text-decoration: none;
+      text-align: center;
+      transition: all 0.25s;
+      box-shadow: 0 0 40px rgba(0,194,122,0.3);
+    }
+    .btn-buy:hover {
+      background: var(--green-d);
+      transform: translateY(-2px);
+      box-shadow: 0 0 60px rgba(0,194,122,0.45);
+    }
+
+    .guarantee {
+      margin-top: 1.5rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    /* ─── FAQ ─── */
+    .faq {
+      padding: 6rem 5vw;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .faq h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+      color: var(--white);
+      margin-bottom: 3rem;
+      text-align: center;
+    }
+
+    .faq-item {
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      padding: 1.5rem 0;
+    }
+
+    .faq-q {
+      font-weight: 600;
+      color: var(--white);
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      user-select: none;
+    }
+
+    .faq-icon {
+      color: var(--green);
+      font-size: 1.2rem;
+      transition: transform 0.3s;
+      flex-shrink: 0;
+    }
+
+    .faq-a {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.8;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease, padding 0.3s;
+    }
+
+    .faq-item.open .faq-a { max-height: 300px; padding-top: 1rem; }
+    .faq-item.open .faq-icon { transform: rotate(45deg); }
+
+    /* ─── FOOTER ─── */
+    footer {
+      padding: 3rem 5vw;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-logo {
+      font-family: 'Fraunces', serif;
+      font-size: 1.2rem;
+      font-weight: 900;
+      color: var(--white);
+    }
+    .footer-logo span { color: var(--green); }
+
+    .footer-copy {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* ─── MODAL (cadastro + pix) ─── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--dark2);
+      border: 1px solid rgba(0,194,122,0.25);
+      border-radius: 24px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 440px;
+      position: relative;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+      animation: scaleIn 0.25s ease;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 1.2rem; right: 1.2rem;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+    .modal-close:hover { color: var(--white); }
+
+    .modal h3 {
+      font-size: 1.5rem;
+      color: var(--white);
+      margin-bottom: 0.4rem;
+    }
+
+    .modal-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    .form-group label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.4rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      background: var(--mid);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      color: var(--white);
+      font-size: 0.95rem;
+      font-family: 'DM Sans', sans-serif;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .form-group input:focus { border-color: var(--green); }
+
+    .btn-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      width: 100%;
+      background: var(--white);
+      color: #1a1a1a;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0.9rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+      font-family: 'DM Sans', sans-serif;
+      text-decoration: none;
+    }
+    .btn-google:hover { background: #f0f0f0; transform: translateY(-1px); }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 1.2rem 0;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+    }
+
+    .btn-form-submit {
+      width: 100%;
+      background: var(--green);
+      color: var(--dark);
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 0.9rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      margin-top: 0.5rem;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .btn-form-submit:hover { background: var(--green-d); transform: translateY(-1px); }
+
+    /* PIX modal */
+    .pix-amount {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .pix-amount .val {
+      font-family: 'Fraunces', serif;
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--white);
+    }
+    .pix-amount .label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .pix-qr {
+      width: 180px;
+      height: 180px;
+      background: var(--white);
+      border-radius: 12px;
+      margin: 0 auto 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Simple QR pattern simulation */
+    .pix-qr svg { width: 160px; height: 160px; }
+
+    .pix-key-box {
+      background: var(--mid);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .pix-key-text {
+      font-size: 0.82rem;
+      color: var(--text);
+      font-family: monospace;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      background: var(--green);
+      color: var(--dark);
+      border: none;
+      border-radius: 6px;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.2s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .copy-btn:hover { background: var(--green-d); }
+
+    .pix-instructions {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.7;
+      text-align: center;
+      background: rgba(0,194,122,0.06);
+      border-radius: 10px;
+      padding: 1rem;
+      border: 1px solid rgba(0,194,122,0.12);
+    }
+
+    .pix-instructions strong { color: var(--green); }
+
+    .step-indicators {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .step-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      transition: background 0.3s, width 0.3s;
+    }
+    .step-dot.active {
+      background: var(--green);
+      width: 24px;
+      border-radius: 4px;
+    }
+
+    /* ─── ANIMATIONS ─── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 640px) {
+      .mockup-inner { grid-template-columns: 1fr; }
+      .mock-sidebar { display: none; }
+      .mock-cards { grid-template-columns: repeat(2, 1fr); }
+      footer { flex-direction: column; text-align: center; }
+    }
+
+    /* ─── SCROLL REVEAL ─── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ NAV ═══════════════════════════════ -->
+<nav>
+  <div class="logo">Crono<span>Med</span></div>
+  <a href="#pricing" class="nav-cta">Começar agora →</a>
+</nav>
+
+<!-- ═══════════════════════════════ HERO ═══════════════════════════════ -->
+<section class="hero">
+  <div class="hero-glow"></div>
+
+  <div class="hero-badge">
+    🩺 Exclusivo para medicina · Residência 2026
+  </div>
+
+  <h1>
+    Estude para a residência<br />
+    com um cronograma <em>feito para você</em>
+  </h1>
+
+  <p class="hero-sub">
+    Sem cursinho caro. Sem planilha genérica. Um sistema inteligente que organiza
+    suas semanas, acompanha seu progresso e te mantém no caminho certo — por uma
+    fração do preço de qualquer alternativa.
+  </p>
+
+  <div class="hero-actions">
+    <a href="#pricing" class="btn-primary">
+      Quero meu cronograma &nbsp;→
+    </a>
+    <a href="#como-funciona" class="btn-secondary">
+      Ver como funciona
+    </a>
+  </div>
+
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span>43</span>
+      <p>semanas estruturadas</p>
+    </div>
+    <div class="hero-stat">
+      <span>R$29</span>
+      <p>acesso completo vitalício</p>
+    </div>
+    <div class="hero-stat">
+      <span>100%</span>
+      <p>personalizável</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ PREVIEW ═══════════════════════════════ -->
+<div class="preview-section">
+  <div class="mockup-frame reveal">
+    <div class="mockup-bar">
+      <div class="mockup-dot"></div>
+      <div class="mockup-dot"></div>
+      <div class="mockup-dot"></div>
+      <div class="mockup-url">cronomed.com.br/cronograma</div>
+    </div>
+    <div class="mockup-inner">
+      <div class="mock-sidebar">
+        <div style="font-size:0.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:.4rem .8rem;margin-bottom:.5rem">Navegação</div>
+        <div class="mock-nav-item active">📊 Dashboard</div>
+        <div class="mock-nav-item">🏠 Página Inicial</div>
+        <div class="mock-nav-item">🔍 Buscar Tarefas</div>
+        <div class="mock-nav-item">✨ Remanejamento</div>
+        <div style="margin-top:auto;padding:.6rem .8rem;font-size:.65rem;color:var(--muted)">Semana 12 de 43</div>
+      </div>
+      <div class="mock-content">
+        <div class="mock-header">Dashboard &amp; Metas — Semana 12</div>
+        <div class="mock-cards">
+          <div class="mock-card">
+            <div class="mock-card-label">Progresso</div>
+            <div class="mock-card-val green">68%</div>
+          </div>
+          <div class="mock-card">
+            <div class="mock-card-label">Questões hoje</div>
+            <div class="mock-card-val">124</div>
+          </div>
+          <div class="mock-card">
+            <div class="mock-card-label">Acerto médio</div>
+            <div class="mock-card-val green">74%</div>
+          </div>
+        </div>
+        <div class="mock-tasks">
+          <div class="mock-task">
+            <div class="mock-check done"></div>
+            <span>Insuficiência Cardíaca — Diagnóstico</span>
+            <div class="mock-tag">Clínica</div>
+          </div>
+          <div class="mock-task">
+            <div class="mock-check done"></div>
+            <span>Trauma: ATLS Avaliação Inicial</span>
+            <div class="mock-tag">Cirurgia</div>
+          </div>
+          <div class="mock-task">
+            <div class="mock-check"></div>
+            <span>🔥 Pré-Natal de Baixo Risco</span>
+            <div class="mock-tag red">Pendente</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ HOW IT WORKS ═══════════════════════════════ -->
+<section class="how" id="como-funciona">
+  <div class="reveal">
+    <div class="section-label">Como funciona</div>
+    <h2>Da compra ao estudo<br />em menos de 5 minutos</h2>
+    <p class="how-sub">
+      Você não precisa montar nada do zero. O sistema já vem estruturado com 43 semanas
+      de conteúdo médico e você ajusta o que quiser.
+    </p>
+  </div>
+
+  <div class="steps">
+    <div class="step reveal" style="transition-delay:0.1s">
+      <div class="step-num">01</div>
+      <h3>Compre o acesso</h3>
+      <p>Pagamento via PIX. Acesso liberado em até 2 horas após confirmação.</p>
+    </div>
+    <div class="step reveal" style="transition-delay:0.2s">
+      <div class="step-num">02</div>
+      <h3>Crie sua conta</h3>
+      <p>Cadastro rápido com e-mail ou Google. Seus dados ficam salvos na nuvem.</p>
+    </div>
+    <div class="step reveal" style="transition-delay:0.3s">
+      <div class="step-num">03</div>
+      <h3>Personalize</h3>
+      <p>Defina datas, internatos e provas. A IA monta seu cronograma personalizado.</p>
+    </div>
+    <div class="step reveal" style="transition-delay:0.4s">
+      <div class="step-num">04</div>
+      <h3>Estude e evolua</h3>
+      <p>Acompanhe questões, aproveitamento e revisões espaçadas — tudo em um lugar.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ FEATURES ═══════════════════════════════ -->
+<section class="features" id="funcionalidades">
+  <div class="features-inner">
+    <div class="reveal">
+      <div class="section-label">Funcionalidades</div>
+      <h2>Tudo que você precisa,<br />nada que não precisa</h2>
+      <p class="features-sub">Desenvolvido por quem estuda para residência, para quem estuda para residência.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <span class="feature-icon">📅</span>
+        <h3>Cronograma semana a semana</h3>
+        <p>43 semanas organizadas por internato com temas, horários e tarefas. Arraste e solte para reorganizar.</p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">🔥</span>
+        <h3>Temas mais prevalentes</h3>
+        <p>Marque os temas mais cobrados com o foguinho. Eles aparecem em destaque no painel de prevalência.</p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">📊</span>
+        <h3>Dashboard completo</h3>
+        <p>Veja questões feitas, acerto médio e progresso por área. Gráficos de evolução dos últimos 14 dias.</p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">🔁</span>
+        <h3>Revisão espaçada</h3>
+        <p>Ao concluir um tema, agende revisões em 10, 15 ou 20 dias conforme sua dificuldade.</p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">✨</span>
+        <h3>Remanejamento inteligente</h3>
+        <p>Ficou para trás? O sistema sugere redistribuição das tarefas atrasadas para semanas futuras.</p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">🌙</span>
+        <h3>Modo noturno + lembretes</h3>
+        <p>Interface adaptada para longas sessões de estudo com sistema de lembretes do dia, semana e datas futuras.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ TESTIMONIAL ═══════════════════════════════ -->
+<section class="testimonial-section">
+  <div class="quote-mark reveal">"</div>
+  <p class="testimonial-text reveal">
+    Não tinha condições de assinar um cursinho de residência que custa R$3.000 por ano.
+    Então <strong>construí meu próprio cronograma</strong> — e funcionou tão bem
+    que decidi compartilhar com quem, assim como eu, quer passar na residência
+    <strong>estudando por conta própria</strong>, com inteligência e sem gastar uma fortuna.
+  </p>
+  <div class="author-block reveal">
+    <div class="author-avatar">A</div>
+    <div class="author-info">
+      <div class="author-name">Arthur</div>
+      <div class="author-role">Criador do CronoMed · Estudante de Medicina</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ PRICING ═══════════════════════════════ -->
+<section class="pricing" id="pricing">
+  <div class="pricing-inner">
+    <div class="reveal">
+      <div class="section-label">Investimento</div>
+      <h2>Um preço justo.<br />Para sempre.</h2>
+      <p class="pricing-sub">Sem mensalidade. Sem renovação. Você paga uma vez e usa para sempre.</p>
+    </div>
+
+    <div class="pricing-card reveal">
+      <div class="pricing-badge">✦ Acesso Vitalício</div>
+
+      <div class="price-display">
+        <span class="price-currency">R$</span>
+        <span class="price-amount">29</span>
+        <span class="price-currency" style="align-self:flex-end;margin-bottom:.8rem">,90</span>
+      </div>
+      <p class="price-desc">pagamento único via PIX · acesso liberado em até 2h</p>
+
+      <ul class="price-includes">
+        <li>Cronograma completo de 43 semanas</li>
+        <li>Dashboard com métricas e gráficos</li>
+        <li>Sistema de revisão espaçada</li>
+        <li>Temas mais prevalentes com 🔥</li>
+        <li>Remanejamento inteligente de tarefas</li>
+        <li>Modo noturno + sistema de lembretes</li>
+        <li>Atualizações futuras inclusas</li>
+      </ul>
+
+      <a href="#" class="btn-buy" onclick="openModal('register'); return false;">
+        Quero meu acesso por R$29,90
+      </a>
+
+      <p class="guarantee">
+        🔒 Pagamento seguro via PIX · Acesso liberado em até 2 horas
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ FAQ ═══════════════════════════════ -->
+<section class="faq">
+  <h2 class="reveal">Perguntas frequentes</h2>
+
+  <div class="faq-item reveal">
+    <div class="faq-q" onclick="toggleFaq(this)">
+      Como funciona o pagamento?
+      <span class="faq-icon">+</span>
+    </div>
+    <div class="faq-a">
+      O pagamento é feito via PIX. Após o cadastro, você verá a chave PIX e o valor de R$29,90. 
+      Depois de pagar, envie o comprovante pelo WhatsApp ou e-mail indicado. O acesso é liberado 
+      manualmente em até 2 horas.
+    </div>
+  </div>
+
+  <div class="faq-item reveal">
+    <div class="faq-q" onclick="toggleFaq(this)">
+      Preciso instalar algum programa?
+      <span class="faq-icon">+</span>
+    </div>
+    <div class="faq-a">
+      Não! O CronoMed funciona 100% no navegador — computador, celular ou tablet. 
+      Basta ter internet e fazer login.
+    </div>
+  </div>
+
+  <div class="faq-item reveal">
+    <div class="faq-q" onclick="toggleFaq(this)">
+      Posso personalizar o cronograma para o meu caso?
+      <span class="faq-icon">+</span>
+    </div>
+    <div class="faq-a">
+      Sim! Você pode adicionar, remover e reorganizar qualquer tarefa. Defina suas próprias 
+      datas de início, internatos e provas. O sistema é 100% editável.
+    </div>
+  </div>
+
+  <div class="faq-item reveal">
+    <div class="faq-q" onclick="toggleFaq(this)">
+      O acesso é realmente vitalício?
+      <span class="faq-icon">+</span>
+    </div>
+    <div class="faq-a">
+      Sim. Você paga R$29,90 uma única vez e tem acesso para sempre, incluindo todas 
+      as atualizações e melhorias futuras.
+    </div>
+  </div>
+
+  <div class="faq-item reveal">
+    <div class="faq-q" onclick="toggleFaq(this)">
+      E se eu não me adaptar ao sistema?
+      <span class="faq-icon">+</span>
+    </div>
+    <div class="faq-a">
+      Entre em contato pelo WhatsApp em até 7 dias após a compra. Se por qualquer motivo 
+      não funcionar para você, devolvemos o valor integral.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ FOOTER ═══════════════════════════════ -->
+<footer>
+  <div class="footer-logo">Crono<span>Med</span></div>
+  <p class="footer-copy">© 2026 CronoMed · Feito com ❤️ por um estudante de medicina, para estudantes de medicina.</p>
+</footer>
+
+<!-- ═══════════════════════════════ MODAL: CADASTRO ═══════════════════════════════ -->
+<div class="modal-overlay" id="modal-register">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('register')">✕</button>
+
+    <div class="step-indicators">
+      <div class="step-dot active" id="dot-1"></div>
+      <div class="step-dot" id="dot-2"></div>
+    </div>
+
+    <h3>Criar sua conta</h3>
+    <p class="modal-sub">Primeiro, crie sua conta gratuita. Depois você verá os dados do PIX para liberar o acesso.</p>
+
+    <a href="#" class="btn-google" onclick="return false;">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continuar com Google
+    </a>
+
+    <div class="divider">ou cadastre com e-mail</div>
+
+    <div class="form-group">
+      <label>Nome completo</label>
+      <input type="text" id="reg-name" placeholder="Seu nome" />
+    </div>
+    <div class="form-group">
+      <label>E-mail</label>
+      <input type="email" id="reg-email" placeholder="seu@email.com" />
+    </div>
+    <div class="form-group">
+      <label>Senha</label>
+      <input type="password" id="reg-pass" placeholder="Mínimo 8 caracteres" />
+    </div>
+
+    <button class="btn-form-submit" onclick="goToPix()">Continuar para o pagamento →</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MODAL: PIX ═══════════════════════════════ -->
+<div class="modal-overlay" id="modal-pix">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('pix')">✕</button>
+
+    <div class="step-indicators">
+      <div class="step-dot" id="dot-p1"></div>
+      <div class="step-dot active" id="dot-p2"></div>
+    </div>
+
+    <h3>Pagamento via PIX</h3>
+    <p class="modal-sub">Escaneie o QR Code ou copie a chave. Após o pagamento, envie o comprovante.</p>
+
+    <div class="pix-amount">
+      <div class="label">Valor a pagar</div>
+      <div class="val">R$ 29,90</div>
+    </div>
+
+    <!-- QR Code placeholder — substitua pela imagem real do seu banco -->
+    <div class="pix-qr">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- QR placeholder visual -->
+        <rect x="10" y="10" width="30" height="30" rx="3" fill="#000"/>
+        <rect x="14" y="14" width="22" height="22" rx="2" fill="white"/>
+        <rect x="18" y="18" width="14" height="14" rx="1" fill="#000"/>
+        <rect x="60" y="10" width="30" height="30" rx="3" fill="#000"/>
+        <rect x="64" y="14" width="22" height="22" rx="2" fill="white"/>
+        <rect x="68" y="18" width="14" height="14" rx="1" fill="#000"/>
+        <rect x="10" y="60" width="30" height="30" rx="3" fill="#000"/>
+        <rect x="14" y="64" width="22" height="22" rx="2" fill="white"/>
+        <rect x="18" y="68" width="14" height="14" rx="1" fill="#000"/>
+        <rect x="45" y="10" width="8" height="8" fill="#000"/>
+        <rect x="45" y="22" width="8" height="8" fill="#000"/>
+        <rect x="10" y="45" width="8" height="8" fill="#000"/>
+        <rect x="22" y="45" width="8" height="8" fill="#000"/>
+        <rect x="45" y="45" width="8" height="8" fill="#000"/>
+        <rect x="57" y="45" width="8" height="8" fill="#000"/>
+        <rect x="69" y="45" width="8" height="8" fill="#000"/>
+        <rect x="81" y="45" width="8" height="8" fill="#000"/>
+        <rect x="45" y="57" width="8" height="8" fill="#000"/>
+        <rect x="57" y="57" width="8" height="8" fill="#000"/>
+        <rect x="69" y="69" width="8" height="8" fill="#000"/>
+        <rect x="57" y="69" width="8" height="8" fill="#000"/>
+        <rect x="81" y="57" width="8" height="8" fill="#000"/>
+        <rect x="81" y="69" width="8" height="8" fill="#000"/>
+        <rect x="69" y="81" width="8" height="8" fill="#000"/>
+        <rect x="81" y="81" width="8" height="8" fill="#000"/>
+        <text x="50" y="55" text-anchor="middle" font-size="7" fill="#666" font-family="sans-serif">QR CODE</text>
+        <text x="50" y="63" text-anchor="middle" font-size="6" fill="#666" font-family="sans-serif">Substitua pelo</text>
+        <text x="50" y="70" text-anchor="middle" font-size="6" fill="#666" font-family="sans-serif">QR do seu banco</text>
+      </svg>
+    </div>
+
+    <div class="pix-key-box">
+      <!-- SUBSTITUA pela sua chave PIX real -->
+      <span class="pix-key-text" id="pix-key">cronomed@seuemail.com</span>
+      <button class="copy-btn" onclick="copyPix()">Copiar</button>
+    </div>
+
+    <div class="pix-instructions">
+      Após o pagamento, envie o comprovante para<br />
+      <strong>WhatsApp: (XX) XXXXX-XXXX</strong><br />
+      ou <strong>cronomed@seuemail.com</strong><br /><br />
+      ⏱ Acesso liberado em até <strong>2 horas</strong>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── MODAL LOGIC ───
+  function openModal(id) {
+    document.getElementById('modal-' + id).classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal(id) {
+    document.getElementById('modal-' + id).classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  function goToPix() {
+    const name  = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const pass  = document.getElementById('reg-pass').value.trim();
+    if (!name || !email || !pass) {
+      alert('Por favor, preencha todos os campos.');
+      return;
+    }
+    if (pass.length < 8) {
+      alert('A senha precisa ter pelo menos 8 caracteres.');
+      return;
+    }
+    closeModal('register');
+    openModal('pix');
+  }
+
+  // Close modals clicking outside
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    });
+  });
+
+  // ─── COPY PIX KEY ───
+  function copyPix() {
+    const key = document.getElementById('pix-key').textContent;
+    navigator.clipboard.writeText(key).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✓ Copiado';
+      setTimeout(() => btn.textContent = 'Copiar', 2000);
+    });
+  }
+
+  // ─── FAQ ACCORDION ───
+  function toggleFaq(el) {
+    const item = el.closest('.faq-item');
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
+
+  // ─── SCROLL REVEAL ───
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
