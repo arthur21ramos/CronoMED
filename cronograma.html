@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cronograma Residência 2026 - Master V12 (Gold)</title>
+    <title>CronoMed — Seu Cronograma de Residência</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com/3.4.1"></script>
     <!-- FontAwesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
         tailwind.config = {
@@ -31,7 +33,7 @@
     </script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,300&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
         /* Layout Fixes */
         html, body { height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; }
@@ -183,28 +185,38 @@
 
     <div class="h-screen flex flex-col">
         <!-- Header -->
-        <header class="bg-black text-white p-4 shadow-lg sticky-header z-50 flex-shrink-0 flex justify-between items-center">
-            <div class="flex items-center gap-6">
-                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white focus:outline-none transition-colors">
-                    <i class="fas fa-bars text-xl"></i>
+        <header class="bg-black text-white px-5 py-3.5 sticky-header z-50 flex-shrink-0 flex justify-between items-center border-b border-slate-800/80" style="backdrop-filter:blur(16px);">
+            <div class="flex items-center gap-5">
+                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white focus:outline-none transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                    <i class="fas fa-bars text-lg"></i>
                 </button>
-                <div>
-                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                        <i class="fas fa-user-md"></i>
-                        Residência Médica 2026
-                    </h1>
-                </div>
+                <a href="index.html" class="flex items-center gap-2.5 hover:opacity-75 transition-opacity group">
+                    <div class="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-lg shadow-emerald-500/20" style="background:linear-gradient(135deg,#10b981,#059669)">
+                        <i class="fas fa-heartbeat text-white"></i>
+                    </div>
+                    <span class="font-black text-lg text-white tracking-tight" style="font-family:'Fraunces',Georgia,serif;letter-spacing:-0.02em;">Crono<span style="color:#34d399;">Med</span></span>
+                </a>
             </div>
-            <div class="text-right flex items-center gap-4">
-                <div class="flex flex-col items-end">
-                    <div class="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Progresso Geral</div>
-                    <div class="w-40 bg-gray-800 rounded-full h-2 mt-1 border border-gray-700 relative overflow-hidden">
-                        <div id="global-progress" class="bg-green-500 h-2 rounded-full transition-all duration-700 shadow-[0_0_10px_rgba(34,197,94,0.5)] absolute top-0 left-0" style="width: 0%"></div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 cursor-default" title="Dias seguidos de estudo">
+                    <i class="fas fa-fire text-orange-400 text-xs"></i>
+                    <span id="streak-count" class="font-black text-sm text-white">0</span>
+                </div>
+                <div class="hidden sm:flex flex-col items-end">
+                    <div class="text-[9px] uppercase font-bold text-gray-500 tracking-widest">Progresso</div>
+                    <div class="w-28 bg-slate-800 rounded-full h-1.5 mt-0.5 overflow-hidden">
+                        <div id="global-progress" class="h-1.5 rounded-full transition-all duration-700" style="width:0%;background:linear-gradient(90deg,#10b981,#34d399)"></div>
                     </div>
                 </div>
-                <div class="text-xl font-black text-white w-12 text-right" id="global-percent-text">0%</div>
-                <button onclick="openSettingsSidebar()" class="text-gray-400 hover:text-white transition-colors ml-2" title="Configurações">
-                    ⚙️
+                <div class="text-base font-black text-white w-10 text-right hidden sm:block" id="global-percent-text">0%</div>
+                <button onclick="openSettingsSidebar()" class="text-gray-400 hover:text-white transition p-2 rounded-full hover:bg-white/10" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button onclick="openProfileModal()" id="profile-btn"
+                    class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 transition-all px-3 py-2 rounded-full text-white font-bold text-xs shadow-md border border-emerald-500/40"
+                    title="Meu Perfil">
+                    <div id="profile-avatar" class="w-6 h-6 rounded-full bg-emerald-300 flex items-center justify-center text-emerald-900 font-black text-xs leading-none">?</div>
+                    <span id="profile-name-short" class="hidden sm:block max-w-[80px] truncate">Perfil</span>
                 </button>
             </div>
         </header>
@@ -1299,5 +1311,197 @@
 
         updateUI();
     </script>
+
+    <!-- PROFILE MODAL -->
+    <div id="profile-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[200] backdrop-blur-sm" onclick="if(event.target===this)closeProfileModal()">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm m-4 border border-gray-200 overflow-hidden" style="animation:scaleIn .25s ease">
+            <!-- Header -->
+            <div class="p-8 text-center relative" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+                <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <div id="pm-avatar" class="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl font-black text-white shadow-xl border-4 border-emerald-500/40" style="background:linear-gradient(135deg,#10b981,#059669)">?</div>
+                <div id="pm-name" class="text-xl font-black text-white mb-1">Carregando...</div>
+                <div id="pm-email" class="text-xs text-slate-400 font-medium">—</div>
+                <div class="mt-4 inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-full">
+                    <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span class="text-emerald-400 text-xs font-bold">Acesso Ativo</span>
+                </div>
+            </div>
+            <!-- Stats -->
+            <div class="p-6 border-b border-gray-100">
+                <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Seu Progresso</h4>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="text-center p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                        <div id="pm-tasks" class="text-2xl font-black text-emerald-700">0</div>
+                        <div class="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Concluídas</div>
+                    </div>
+                    <div class="text-center p-3 bg-blue-50 rounded-2xl border border-blue-100">
+                        <div id="pm-questions" class="text-2xl font-black text-blue-700">0</div>
+                        <div class="text-[9px] font-bold text-blue-600 uppercase tracking-wider mt-0.5">Questões</div>
+                    </div>
+                    <div class="text-center p-3 bg-orange-50 rounded-2xl border border-orange-100">
+                        <div id="pm-streak" class="text-2xl font-black text-orange-600">0</div>
+                        <div class="text-[9px] font-bold text-orange-500 uppercase tracking-wider mt-0.5">Dias Seguidos</div>
+                    </div>
+                </div>
+                <!-- Global progress bar -->
+                <div class="mt-4">
+                    <div class="flex justify-between text-[10px] font-bold text-gray-500 mb-1.5">
+                        <span>Progresso Geral</span>
+                        <span id="pm-percent">0%</span>
+                    </div>
+                    <div class="bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                        <div id="pm-progress-bar" class="h-2.5 rounded-full transition-all duration-1000" style="width:0%;background:linear-gradient(90deg,#10b981,#34d399)"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Actions -->
+            <div class="p-6 space-y-3">
+                <button onclick="handleProfileLogout()" class="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-bold text-sm bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition">
+                    <i class="fas fa-sign-out-alt"></i> Sair da conta
+                </button>
+                <button onclick="closeProfileModal()" class="w-full py-3 rounded-2xl font-bold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 transition text-xs">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes scaleIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+    </style>
+
+    <script>
+        // ── SUPABASE AUTH ──────────────────────────────────────────────────────
+        (function() {
+            const SB_URL  = 'https://pdfzoimdonoikrhtwmym.supabase.co';
+            const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZnpvaW1kb25vaWtyaHR3bXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTUxMDYsImV4cCI6MjA5MTI3MTEwNn0.xy7MNY0U9hawd4Lvz6pFq4x4gVyQAbcPoTXoCbiIpdw';
+
+            if (typeof supabase === 'undefined') {
+                // SDK not loaded yet — retry after short delay
+                window._sbReady = false;
+                window.addEventListener('load', initSupabaseAuth);
+            } else {
+                initSupabaseAuth();
+            }
+
+            function initSupabaseAuth() {
+                try {
+                    const { createClient } = supabase;
+                    window._sb = createClient(SB_URL, SB_KEY);
+
+                    // Check session on load
+                    window._sb.auth.getSession().then(({ data: { session } }) => {
+                        if (!session) {
+                            // Not logged in → redirect to landing
+                            window.location.href = 'index.html';
+                            return;
+                        }
+                        // Load profile info
+                        loadProfileInfo(session.user);
+                    });
+
+                    // Listen for auth changes
+                    window._sb.auth.onAuthStateChange((event, session) => {
+                        if (event === 'SIGNED_OUT') {
+                            window.location.href = 'index.html';
+                        }
+                    });
+
+                } catch(e) {
+                    console.warn('Supabase auth init failed:', e);
+                }
+            }
+
+            async function loadProfileInfo(user) {
+                try {
+                    const { data: profile } = await window._sb
+                        .from('profiles')
+                        .select('nome, email, acesso_liberado')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (profile && !profile.acesso_liberado) {
+                        // Access not paid → back to landing
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    const name  = profile?.nome  || user.email?.split('@')[0] || 'Usuário';
+                    const email = profile?.email || user.email || '';
+                    const initials = name.slice(0,2).toUpperCase();
+
+                    // Update header avatar
+                    const avatar = document.getElementById('profile-avatar');
+                    const nameShort = document.getElementById('profile-name-short');
+                    if (avatar) avatar.textContent = initials;
+                    if (nameShort) nameShort.textContent = name.split(' ')[0];
+
+                    // Store for profile modal
+                    window._profileData = { name, email, initials };
+
+                } catch(e) {
+                    console.warn('Profile load failed:', e);
+                }
+            }
+        })();
+
+        // ── PROFILE MODAL ─────────────────────────────────────────────────────
+        window.openProfileModal = function() {
+            // Populate stats
+            let totalTasks = 0, completedTasks = 0, totalQ = 0;
+            state.weeks.forEach(w => {
+                w.tasks.forEach(t => {
+                    totalTasks++;
+                    if (state.progress[t.id]?.doneStatus) completedTasks++;
+                });
+            });
+            const entries = Object.values(state.dailyStats);
+            totalQ = entries.reduce((a, b) => a + b, 0);
+            const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+            // Streak
+            let streak = 0; let d = new Date();
+            while(true) {
+                let s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                if (state.dailyStats[s] && state.dailyStats[s] > 0) { streak++; d.setDate(d.getDate()-1); }
+                else if (s === window.getTodayStr()) { d.setDate(d.getDate()-1); }
+                else break;
+            }
+
+            // Set values
+            const pd = window._profileData || { name: 'Usuário', email: '', initials: '?' };
+            const pmAvatar = document.getElementById('pm-avatar');
+            const pmName   = document.getElementById('pm-name');
+            const pmEmail  = document.getElementById('pm-email');
+            if (pmAvatar) pmAvatar.textContent = pd.initials;
+            if (pmName)   pmName.textContent   = pd.name;
+            if (pmEmail)  pmEmail.textContent  = pd.email;
+
+            document.getElementById('pm-tasks').textContent     = completedTasks;
+            document.getElementById('pm-questions').textContent  = totalQ;
+            document.getElementById('pm-streak').textContent     = streak;
+            document.getElementById('pm-percent').textContent    = pct + '%';
+            document.getElementById('pm-progress-bar').style.width = pct + '%';
+
+            // Show modal
+            const modal = document.getElementById('profile-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        window.closeProfileModal = function() {
+            const modal = document.getElementById('profile-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        window.handleProfileLogout = async function() {
+            if (window._sb) {
+                await window._sb.auth.signOut();
+            }
+            window.location.href = 'index.html';
+        }
+    </script>
+
 </body>
 </html>
