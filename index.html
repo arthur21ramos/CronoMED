@@ -509,7 +509,7 @@
     if (!user) return;
     const { data: profile } = await sb.from('profiles').select('acesso_liberado').eq('id', user.id).single();
     if (profile && profile.acesso_liberado) {
-      window.location.href = 'onboarding';
+      window.location.href = 'cronograma.html';
     } else {
       alert('Pagamento ainda não confirmado. Assim que recebermos seu comprovante, liberaremos em até 2 horas! 😊');
     }
