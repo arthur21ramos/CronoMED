@@ -498,7 +498,7 @@
   async function routeUser(user) {
     const { data: profile } = await sb.from('profiles').select('acesso_liberado').eq('id', user.id).single();
     if (profile && profile.acesso_liberado) {
-      window.location.href = 'onboarding.html';
+      window.location.href = 'onboarding';
     } else {
       openModal('pending');
     }
@@ -509,7 +509,7 @@
     if (!user) return;
     const { data: profile } = await sb.from('profiles').select('acesso_liberado').eq('id', user.id).single();
     if (profile && profile.acesso_liberado) {
-      window.location.href = 'onboarding.html';
+      window.location.href = 'onboarding';
     } else {
       alert('Pagamento ainda não confirmado. Assim que recebermos seu comprovante, liberaremos em até 2 horas! 😊');
     }
