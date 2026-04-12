@@ -179,6 +179,14 @@
         /* REMANEJAMENTO MODAL */
         .remanejo-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; font-size: 12px; }
         body.dark-mode .remanejo-card { background: #334155 !important; border-color: #475569 !important; color: #e2e8f0 !important; }
+
+        /* CLOUD SAVE INDICATOR */
+        .save-indicator { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 100px; transition: all 0.3s; }
+        .save-indicator.saving  { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+        .save-indicator.saved   { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+        .save-indicator.error   { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+        .save-indicator.offline { background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800 overflow-hidden" onkeydown="handleGlobalKeydown(event)">
@@ -201,6 +209,10 @@
                 <div class="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 cursor-default" title="Dias seguidos de estudo">
                     <i class="fas fa-fire text-orange-400 text-xs"></i>
                     <span id="streak-count" class="font-black text-sm text-white">0</span>
+                </div>
+                <div id="cloud-save-indicator" class="save-indicator saved hidden sm:flex">
+                    <i id="cloud-save-icon" class="fas fa-cloud text-xs"></i>
+                    <span id="cloud-save-text">Salvo</span>
                 </div>
                 <div class="hidden sm:flex flex-col items-end">
                     <div class="text-[9px] uppercase font-bold text-gray-500 tracking-widest">Progresso</div>
@@ -1354,8 +1366,12 @@
                     </div>
                 </div>
             </div>
+            <!-- Cloud status -->
+            <div class="px-6 pb-2">
+                <div id="pm-cloud-status" class="text-center text-xs text-gray-400 font-medium py-2 bg-gray-50 rounded-xl border border-gray-100">☁️ Sincronizado</div>
+            </div>
             <!-- Actions -->
-            <div class="p-6 space-y-3">
+            <div class="p-6 pt-3 space-y-3">
                 <button onclick="handleProfileLogout()" class="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-bold text-sm bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition">
                     <i class="fas fa-sign-out-alt"></i> Sair da conta
                 </button>
@@ -1371,134 +1387,214 @@
     </style>
 
     <script>
-        // ── SUPABASE AUTH ──────────────────────────────────────────────────────
-        (function() {
-            const SB_URL  = 'https://pdfzoimdonoikrhtwmym.supabase.co';
-            const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZnpvaW1kb25vaWtyaHR3bXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTUxMDYsImV4cCI6MjA5MTI3MTEwNn0.xy7MNY0U9hawd4Lvz6pFq4x4gVyQAbcPoTXoCbiIpdw';
+        // ══════════════════════════════════════════════════════════════════════
+        // SUPABASE — AUTH + CLOUD SAVE/LOAD
+        // ══════════════════════════════════════════════════════════════════════
+        const SB_URL = 'https://pdfzoimdonoikrhtwmym.supabase.co';
+        const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZnpvaW1kb25vaWtyaHR3bXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTUxMDYsImV4cCI6MjA5MTI3MTEwNn0.xy7MNY0U9hawd4Lvz6pFq4x4gVyQAbcPoTXoCbiIpdw';
 
-            if (typeof supabase === 'undefined') {
-                // SDK not loaded yet — retry after short delay
-                window._sbReady = false;
-                window.addEventListener('load', initSupabaseAuth);
-            } else {
-                initSupabaseAuth();
+        const { createClient } = supabase;
+        window._sb = createClient(SB_URL, SB_KEY);
+        window._profileData = { name: 'Usuário', email: '', initials: '?' };
+
+        // Debounce timer for cloud saves
+        let _saveTimer = null;
+        let _saveStatus = 'saved'; // 'saving' | 'saved' | 'error' | 'offline'
+
+        function setSaveStatus(status, msg) {
+            _saveStatus = status;
+            const ind = document.getElementById('cloud-save-indicator');
+            const ico = document.getElementById('cloud-save-icon');
+            const txt = document.getElementById('cloud-save-text');
+            if (!ind) return;
+            ind.className = 'save-indicator ' + status + ' flex';
+            if (status === 'saving') { ico.className = 'fas fa-circle-notch fa-spin text-xs'; txt.textContent = 'Salvando...'; }
+            if (status === 'saved')  { ico.className = 'fas fa-cloud-check text-xs'; txt.textContent = 'Salvo'; }
+            if (status === 'error')  { ico.className = 'fas fa-exclamation-triangle text-xs'; txt.textContent = msg || 'Erro'; }
+            if (status === 'offline'){ ico.className = 'fas fa-wifi-slash text-xs'; txt.textContent = 'Offline'; }
+        }
+
+        // ── SAVE TO CLOUD (debounced 2s) ──────────────────────────────────────
+        window._saveToCloud = async function() {
+            if (!window._sb) return;
+            const { data: { user } } = await window._sb.auth.getUser();
+            if (!user) return;
+            setSaveStatus('saving');
+            try {
+                const { error } = await window._sb.from('cronogramas').upsert({
+                    user_id: user.id,
+                    state_data: state
+                });
+                if (error) throw error;
+                setSaveStatus('saved');
+            } catch(e) {
+                console.warn('Cloud save failed:', e);
+                setSaveStatus('error', 'Erro ao salvar');
             }
+        }
 
-            function initSupabaseAuth() {
-                try {
-                    const { createClient } = supabase;
-                    window._sb = createClient(SB_URL, SB_KEY);
+        // Override the existing save() to also trigger cloud save
+        const _originalSave = window.save;
+        window.save = function(skipStack) {
+            _originalSave && _originalSave(skipStack);
+            // Debounce cloud save — only fires 2s after last change
+            clearTimeout(_saveTimer);
+            setSaveStatus('saving');
+            _saveTimer = setTimeout(() => { window._saveToCloud(); }, 2000);
+        }
 
-                    // Check session on load
-                    window._sb.auth.getSession().then(({ data: { session } }) => {
-                        if (!session) {
-                            // Not logged in → redirect to landing
-                            window.location.href = 'index.html';
-                            return;
-                        }
-                        // Load profile info
-                        loadProfileInfo(session.user);
-                    });
+        // ── LOAD FROM CLOUD ───────────────────────────────────────────────────
+        window._loadFromCloud = async function(user) {
+            try {
+                const { data, error } = await window._sb.from('cronogramas')
+                    .select('state_data').eq('user_id', user.id).single();
 
-                    // Listen for auth changes
-                    window._sb.auth.onAuthStateChange((event, session) => {
-                        if (event === 'SIGNED_OUT') {
-                            window.location.href = 'index.html';
-                        }
-                    });
-
-                } catch(e) {
-                    console.warn('Supabase auth init failed:', e);
+                if (error || !data) {
+                    console.log('No cloud save found, using localStorage/default');
+                    return false;
                 }
-            }
 
-            async function loadProfileInfo(user) {
-                try {
-                    const { data: profile } = await window._sb
-                        .from('profiles')
-                        .select('nome, email, acesso_liberado')
-                        .eq('id', user.id)
-                        .single();
+                const cloudState = data.state_data;
 
-                    if (profile && !profile.acesso_liberado) {
-                        // Access not paid → back to landing
-                        window.location.href = 'index.html';
-                        return;
+                // Use cloud state if it has weeks data
+                if (cloudState && Array.isArray(cloudState.weeks) && cloudState.weeks.length > 0) {
+                    // Check if cloud is newer than local
+                    const localRaw = localStorage.getItem(STORAGE_KEY);
+                    if (localRaw) {
+                        const local = JSON.parse(localRaw);
+                        // Use cloud state — it's the source of truth
+                        state = cloudState;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                        console.log('Loaded state from cloud ✅', state.weeks.length, 'weeks');
+                    } else {
+                        state = cloudState;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                        console.log('Loaded state from cloud (no local) ✅');
                     }
-
-                    const name  = profile?.nome  || user.email?.split('@')[0] || 'Usuário';
-                    const email = profile?.email || user.email || '';
-                    const initials = name.slice(0,2).toUpperCase();
-
-                    // Update header avatar
-                    const avatar = document.getElementById('profile-avatar');
-                    const nameShort = document.getElementById('profile-name-short');
-                    if (avatar) avatar.textContent = initials;
-                    if (nameShort) nameShort.textContent = name.split(' ')[0];
-
-                    // Store for profile modal
-                    window._profileData = { name, email, initials };
-
-                } catch(e) {
-                    console.warn('Profile load failed:', e);
+                    return true;
                 }
+                return false;
+            } catch(e) {
+                console.warn('Cloud load failed:', e);
+                return false;
             }
+        }
+
+        // ── AUTH INIT ─────────────────────────────────────────────────────────
+        (async function initAuth() {
+            const { data: { session } } = await window._sb.auth.getSession();
+
+            if (!session) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const user = session.user;
+
+            // Check access + onboarding
+            const { data: profile } = await window._sb.from('profiles')
+                .select('acesso_liberado, nome, email').eq('id', user.id).single();
+
+            if (!profile || !profile.acesso_liberado) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Check onboarding
+            const { data: ob } = await window._sb.from('onboarding')
+                .select('completed').eq('user_id', user.id).single();
+
+            if (!ob || !ob.completed) {
+                window.location.href = 'onboarding.html';
+                return;
+            }
+
+            // Load profile info for UI
+            const name     = profile.nome || user.email?.split('@')[0] || 'Usuário';
+            const email    = profile.email || user.email || '';
+            const initials = name.slice(0, 2).toUpperCase();
+            window._profileData = { name, email, initials };
+
+            // Update header
+            const avatarEl    = document.getElementById('profile-avatar');
+            const nameShortEl = document.getElementById('profile-name-short');
+            if (avatarEl)    avatarEl.textContent    = initials;
+            if (nameShortEl) nameShortEl.textContent = name.split(' ')[0];
+
+            // Load cloud state THEN init
+            const cloudLoaded = await window._loadFromCloud(user);
+            if (!cloudLoaded) {
+                // initState will use localStorage or defaults
+                window.initState();
+            } else {
+                // State already loaded from cloud — just update UI
+                window.enforceCrucialStatus && window.enforceCrucialStatus();
+                window.updateUI && window.updateUI();
+                setSaveStatus('saved');
+            }
+
+            // Listen for sign out
+            window._sb.auth.onAuthStateChange((event) => {
+                if (event === 'SIGNED_OUT') window.location.href = 'index.html';
+            });
+
         })();
 
         // ── PROFILE MODAL ─────────────────────────────────────────────────────
         window.openProfileModal = function() {
-            // Populate stats
-            let totalTasks = 0, completedTasks = 0, totalQ = 0;
+            const pd = window._profileData;
+
+            // Compute stats
+            let completedTasks = 0, totalTasks = 0, totalQ = 0;
             state.weeks.forEach(w => {
                 w.tasks.forEach(t => {
                     totalTasks++;
                     if (state.progress[t.id]?.doneStatus) completedTasks++;
                 });
             });
-            const entries = Object.values(state.dailyStats);
-            totalQ = entries.reduce((a, b) => a + b, 0);
+            totalQ = Object.values(state.dailyStats).reduce((a,b) => a+b, 0);
             const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
             // Streak
             let streak = 0; let d = new Date();
             while(true) {
                 let s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                if (state.dailyStats[s] && state.dailyStats[s] > 0) { streak++; d.setDate(d.getDate()-1); }
+                if (state.dailyStats[s] > 0) { streak++; d.setDate(d.getDate()-1); }
                 else if (s === window.getTodayStr()) { d.setDate(d.getDate()-1); }
                 else break;
             }
 
-            // Set values
-            const pd = window._profileData || { name: 'Usuário', email: '', initials: '?' };
-            const pmAvatar = document.getElementById('pm-avatar');
-            const pmName   = document.getElementById('pm-name');
-            const pmEmail  = document.getElementById('pm-email');
-            if (pmAvatar) pmAvatar.textContent = pd.initials;
-            if (pmName)   pmName.textContent   = pd.name;
-            if (pmEmail)  pmEmail.textContent  = pd.email;
+            // Set modal values
+            const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+            const setStyle = (id, prop, val) => { const el = document.getElementById(id); if(el) el.style[prop] = val; };
 
-            document.getElementById('pm-tasks').textContent     = completedTasks;
-            document.getElementById('pm-questions').textContent  = totalQ;
-            document.getElementById('pm-streak').textContent     = streak;
-            document.getElementById('pm-percent').textContent    = pct + '%';
-            document.getElementById('pm-progress-bar').style.width = pct + '%';
+            document.getElementById('pm-avatar').textContent = pd.initials;
+            set('pm-name',         pd.name);
+            set('pm-email',        pd.email);
+            set('pm-tasks',        completedTasks);
+            set('pm-questions',    totalQ);
+            set('pm-streak',       streak);
+            set('pm-percent',      pct + '%');
+            setStyle('pm-progress-bar', 'width', pct + '%');
 
-            // Show modal
+            // Cloud status
+            const pmCloud = document.getElementById('pm-cloud-status');
+            if (pmCloud) {
+                pmCloud.textContent = _saveStatus === 'saved' ? '☁️ Sincronizado' : _saveStatus === 'saving' ? '🔄 Sincronizando...' : '⚠️ Erro de sincronização';
+            }
+
             const modal = document.getElementById('profile-modal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
         }
 
         window.closeProfileModal = function() {
-            const modal = document.getElementById('profile-modal');
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
+            document.getElementById('profile-modal').classList.add('hidden');
+            document.getElementById('profile-modal').classList.remove('flex');
         }
 
         window.handleProfileLogout = async function() {
-            if (window._sb) {
-                await window._sb.auth.signOut();
-            }
+            if (window._sb) await window._sb.auth.signOut();
             window.location.href = 'index.html';
         }
     </script>
