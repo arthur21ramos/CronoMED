@@ -498,7 +498,7 @@
   async function routeUser(user) {
     const { data: profile } = await sb.from('profiles').select('acesso_liberado').eq('id', user.id).single();
     if (profile && profile.acesso_liberado) {
-      window.location.href = 'onboarding';
+      window.location.href = 'onboarding.html';
     } else {
       openModal('pending');
     }
