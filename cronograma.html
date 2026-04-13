@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CronoMed — Seu Cronograma de Residência</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com/3.4.1"></script>
+    <!-- FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        medical: {
+                            50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1',
+                            400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155',
+                            800: '#1e293b', 900: '#0f172a',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900;1,9..144,300&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+        /* Layout Fixes */
+        html, body { height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; }
+        .sidebar { transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; }
+        .sidebar-hidden { margin-left: -20rem; }
+        
+        /* Critical Scroll Fix for Sidebar */
+        .sidebar-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 20px; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* General UI */
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); transition: box-shadow 0.2s; }
+        .card-shadow:hover { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025); }
+        
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        [contenteditable]:empty:before { content: attr(placeholder); color: #9ca3af; display: block; }
+        .week-btn { transition: all 0.2s ease; }
+
+        /* Drag & Drop */
+        .draggable-source { opacity: 0.4; }
+        .drop-target-week { background-color: #e0f2fe !important; border-left: 4px solid #3b82f6 !important; }
+        .drop-target-task { border-top: 4px solid #3b82f6; margin-top: 10px; }
+        .drop-target-agenda { box-shadow: inset 0 0 0 2px #2563eb !important; background-color: #eff6ff !important; }
+
+        /* AGENDA STYLING */
+        .agenda-table { border-collapse: separate; border-spacing: 0; width: 100%; border: 1px solid #e2e8f0; table-layout: fixed; border-radius: 8px; overflow: hidden; }
+        .agenda-table th { background-color: #0f172a; color: white; font-weight: 600; padding: 10px; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #334155; }
+        .agenda-table td { border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; position: relative; vertical-align: top; }
+        .time-col { background-color: #f8fafc; color: #334155; font-weight: 600; vertical-align: middle !important; font-size: 0.75rem; }
+        .agenda-cell { width: 100%; height: 100%; min-height: 60px; padding: 6px; display: flex; align-items: center; justify-content: center; text-align: center; outline: none; word-break: break-word; white-space: pre-wrap; font-size: 11px; background-color: #fff; transition: background-color 0.2s; }
+        .agenda-cell:focus { background-color: #fffbeb; box-shadow: inset 0 0 0 2px #fbbf24; z-index: 10; }
+        
+        .row-controls { position: absolute; right: 0; top: 0; bottom: 0; width: 20px; display: flex; flex-direction: column; justify-content: center; gap: 2px; opacity: 0; transition: opacity 0.2s; pointer-events: none; background: rgba(255,255,255,0.9); backdrop-filter: blur(2px); border-left: 1px solid #e2e8f0; }
+        tr:hover .row-controls { opacity: 1; pointer-events: auto; }
+
+        /* DASHBOARD ITEM STYLE */
+        .dash-item {
+            border-left: 3px solid transparent;
+            background-color: white;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dash-item:hover { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.04); border-color: #cbd5e1; }
+        .dash-item.done .subject-text { text-decoration: line-through; color: #94a3b8; }
+        .dash-item.done { background-color: #f8fafc; border-color: #e2e8f0; opacity: 0.75; }
+        .dash-item.crucial { border-left-color: #ef4444; background-color: #fff1f2; }
+        
+        .editor-btn { @apply p-1.5 rounded hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer; }
+
+        /* TEMAS MAIS PREVALENTES STYLES */
+        .raio-x-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+        .hy-card { 
+            padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; 
+            font-size: 11px; cursor: pointer; transition: all 0.2s; 
+            display: flex; align-items: center; gap: 8px; background: white;
+            justify-content: space-between;
+            color: #334155;
+        }
+        .hy-card:hover { border-color: #94a3b8; transform: translateY(-1px); }
+        .hy-card.completed { background-color: #f0fdf4; border-color: #86efac; color: #166534; font-weight: 600; }
+        .hy-circle { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #cbd5e1; background: white; flex-shrink: 0; }
+        .hy-card.completed .hy-circle { background: #166534; border-color: #166534; }
+        .week-tag { font-size: 9px; background: #f1f5f9; padding: 2px 6px; border-radius: 12px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* MODAL */
+        .modal { transition: opacity 0.2s ease-out; }
+
+        /* FIRE BUTTON */
+        .fire-btn { filter: grayscale(100%); opacity: 0.3; transition: all 0.2s; }
+        .fire-btn.active { filter: grayscale(0%); opacity: 1; transform: scale(1.15); }
+        .fire-btn:hover { opacity: 0.7; filter: grayscale(30%); }
+
+        /* CALENDAR STYLES */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; width: 100%; }
+        .calendar-day { 
+            aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            border-radius: 6px; font-size: 11px; cursor: pointer; position: relative;
+            background: white; border: 1px solid transparent; color: #334155; transition: all 0.2s;
+            min-width: 0; overflow: hidden;
+        }
+        .calendar-day:hover { background: #f1f5f9; color: #0f172a; font-weight: 600; }
+        .calendar-day.today { background: #0f172a; color: white; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+        .calendar-day.has-activity::after { content: ''; width: 4px; height: 4px; background: #22c55e; border-radius: 50%; position: absolute; bottom: 3px; }
+        .calendar-day.today.has-activity::after { background: #4ade80; }
+        .calendar-header { font-size: 9px; text-transform: uppercase; color: #94a3b8; text-align: center; font-weight: 700; padding-bottom: 6px; letter-spacing: 0.03em; min-width: 0; }
+
+        /* Filter Chips */
+        .filter-chip {
+            padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid #e2e8f0; background: white; color: #64748b; transition: all 0.2s;
+        }
+        .filter-chip:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .filter-chip.active { background: #0f172a; color: white; border-color: #0f172a; }
+
+        /* SETTINGS SIDEBAR (right) */
+        .settings-sidebar { position: fixed; top: 0; right: -22rem; width: 22rem; height: 100vh; background: white; border-left: 1px solid #e2e8f0; z-index: 200; transition: right 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow: -4px 0 24px rgba(0,0,0,0.08); overflow-y: auto; }
+        .settings-sidebar.open { right: 0; }
+        .settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 199; display: none; }
+        .settings-overlay.open { display: block; }
+
+        /* DARK MODE */
+        body.dark-mode { background: #0f172a !important; color: #e2e8f0 !important; }
+        body.dark-mode #main-sidebar { background: #1e293b !important; border-color: #334155 !important; }
+        body.dark-mode #main-scroll { background: #0f172a !important; }
+        body.dark-mode .bg-white { background-color: #1e293b !important; }
+        body.dark-mode .bg-gray-50, body.dark-mode .bg-slate-50 { background-color: #0f172a !important; }
+        body.dark-mode .border-gray-200, body.dark-mode .border-gray-100 { border-color: #334155 !important; }
+        body.dark-mode .text-slate-800, body.dark-mode .text-slate-700, body.dark-mode .text-slate-900 { color: #e2e8f0 !important; }
+        body.dark-mode .text-gray-400, body.dark-mode .text-gray-500 { color: #94a3b8 !important; }
+        body.dark-mode .bg-gray-100 { background-color: #334155 !important; }
+        body.dark-mode .bg-slate-100 { background-color: #334155 !important; }
+        body.dark-mode .dash-item { background: #1e293b !important; border-color: #334155 !important; }
+        body.dark-mode .hy-card { background: #1e293b !important; border-color: #334155 !important; color: #e2e8f0 !important; }
+        body.dark-mode .agenda-cell { background: #1e293b !important; color: #e2e8f0 !important; }
+        body.dark-mode .settings-sidebar { background: #1e293b !important; border-color: #334155 !important; }
+
+        /* REMINDERS BALLOON */
+        .reminder-balloon { position: fixed; bottom: 24px; right: 24px; z-index: 150; }
+        .reminder-fab { width: 52px; height: 52px; border-radius: 50%; background: #0f172a; color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); transition: transform 0.2s; }
+        .reminder-fab:hover { transform: scale(1.08); }
+        .reminder-panel { position: absolute; bottom: 64px; right: 0; width: 320px; background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 8px 32px rgba(0,0,0,0.12); padding: 20px; display: none; }
+        .reminder-panel.open { display: block; }
+        body.dark-mode .reminder-panel { background: #1e293b !important; border-color: #334155 !important; }
+        .reminder-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 6px; font-size: 12px; color: #334155; }
+        body.dark-mode .reminder-item { background: #334155 !important; border-color: #475569 !important; color: #e2e8f0 !important; }
+        .reminder-item .rm-date { font-size: 10px; font-weight: 700; color: #94a3b8; margin-top: 2px; }
+
+        /* HOMEPAGE */
+        #homepage-view { display: none; }
+        #homepage-view.active { display: block; }
+
+        /* REMANEJAMENTO MODAL */
+        .remanejo-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; font-size: 12px; }
+        body.dark-mode .remanejo-card { background: #334155 !important; border-color: #475569 !important; color: #e2e8f0 !important; }
+
+        /* CLOUD SAVE INDICATOR */
+        .save-indicator { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 100px; transition: all 0.3s; }
+        .save-indicator.saving  { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+        .save-indicator.saved   { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); }
+        .save-indicator.error   { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+        .save-indicator.offline { background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+
+    </style>
+</head>
+<body class="bg-gray-50 text-slate-800 overflow-hidden" onkeydown="handleGlobalKeydown(event)">
+
+    <div class="h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-black text-white px-5 py-3.5 sticky-header z-50 flex-shrink-0 flex justify-between items-center border-b border-slate-800/80" style="backdrop-filter:blur(16px);">
+            <div class="flex items-center gap-5">
+                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white focus:outline-none transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+                <a href="index.html" class="flex items-center gap-2.5 hover:opacity-75 transition-opacity group">
+                    <div class="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-lg shadow-emerald-500/20" style="background:linear-gradient(135deg,#10b981,#059669)">
+                        <i class="fas fa-heartbeat text-white"></i>
+                    </div>
+                    <span class="font-black text-lg text-white tracking-tight" style="font-family:'Fraunces',Georgia,serif;letter-spacing:-0.02em;">Crono<span style="color:#34d399;">Med</span></span>
+                </a>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 cursor-default" title="Dias seguidos de estudo">
+                    <i class="fas fa-fire text-orange-400 text-xs"></i>
+                    <span id="streak-count" class="font-black text-sm text-white">0</span>
+                </div>
+                <div id="cloud-save-indicator" class="save-indicator saved hidden sm:flex">
+                    <i id="cloud-save-icon" class="fas fa-cloud text-xs"></i>
+                    <span id="cloud-save-text">Salvo</span>
+                </div>
+                <div class="hidden sm:flex flex-col items-end">
+                    <div class="text-[9px] uppercase font-bold text-gray-500 tracking-widest">Progresso</div>
+                    <div class="w-28 bg-slate-800 rounded-full h-1.5 mt-0.5 overflow-hidden">
+                        <div id="global-progress" class="h-1.5 rounded-full transition-all duration-700" style="width:0%;background:linear-gradient(90deg,#10b981,#34d399)"></div>
+                    </div>
+                </div>
+                <div class="text-base font-black text-white w-10 text-right hidden sm:block" id="global-percent-text">0%</div>
+                <button onclick="openSettingsSidebar()" class="text-gray-400 hover:text-white transition p-2 rounded-full hover:bg-white/10" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button onclick="openProfileModal()" id="profile-btn"
+                    class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 transition-all px-3 py-2 rounded-full text-white font-bold text-xs shadow-md border border-emerald-500/40"
+                    title="Meu Perfil">
+                    <div id="profile-avatar" class="w-6 h-6 rounded-full bg-emerald-300 flex items-center justify-center text-emerald-900 font-black text-xs leading-none">?</div>
+                    <span id="profile-name-short" class="hidden sm:block max-w-[80px] truncate">Perfil</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden relative">
+            <!-- Sidebar -->
+            <aside id="main-sidebar" class="w-80 bg-white border-r border-gray-200 sidebar flex flex-col z-40 shadow-xl">
+                <div class="p-6 border-b border-gray-100 bg-gray-50/50 space-y-3 shrink-0">
+                    <button onclick="switchView('homepage')" id="nav-homepage" 
+                        class="w-full flex items-center gap-4 px-5 py-3.5 rounded-xl font-bold transition-all shadow-sm bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 text-left hover:text-gray-900">
+                        <span class="text-lg w-5 text-center leading-none">🏠</span>
+                        <span>Página Inicial</span>
+                    </button>
+                    <button onclick="switchView('dashboard')" id="nav-dashboard" 
+                        class="w-full flex items-center gap-4 px-5 py-3.5 rounded-xl font-bold transition-all shadow-sm bg-black text-white hover:bg-gray-800 text-left border border-transparent">
+                        <span class="text-lg w-5 text-center leading-none">📊</span>
+                        <span>Dashboard &amp; Metas</span>
+                    </button>
+                    
+                    <button onclick="switchView('search')" id="nav-search" 
+                        class="w-full flex items-center gap-4 px-5 py-3.5 rounded-xl font-bold transition-all shadow-sm bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 text-left hover:text-gray-900">
+                        <span class="text-lg w-5 text-center leading-none">🔍</span>
+                        <span>Busca de Tarefas</span>
+                    </button>
+
+                    <button onclick="openRemanejoModal()" 
+                        class="w-full flex items-center gap-4 px-5 py-3.5 rounded-xl font-bold transition-all shadow-sm bg-white border border-gray-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 text-left">
+                        <span class="text-lg w-5 text-center leading-none">✨</span>
+                        <span>Remanejamento</span>
+                    </button>
+
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <button onclick="undo()" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg font-bold text-xs bg-white border border-gray-200 hover:bg-gray-100 text-gray-600 transition-colors" title="Desfazer (Ctrl+Z)">
+                            ↩️ Desfazer
+                        </button>
+                        <button onclick="redo()" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg font-bold text-xs bg-white border border-gray-200 hover:bg-gray-100 text-gray-600 transition-colors" title="Refazer (Ctrl+Y)">
+                            ↪️ Refazer
+                        </button>
+                    </div>
+                </div>
+                <!-- Container de scroll -->
+                <nav class="p-3 space-y-1 sidebar-content" id="week-nav"></nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="flex-1 p-8 overflow-y-auto bg-slate-50 relative w-full" id="main-scroll">
+                <div id="content-area" class="container mx-auto max-w-7xl pb-24"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backup-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[100] modal backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 m-4 border border-gray-200">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-black text-gray-900">Backup Local</h3>
+                <button onclick="closeBackupModal()" class="text-gray-400 hover:text-black transition text-xl leading-none">✕</button>
+            </div>
+            <p class="text-sm text-gray-500 mb-6 leading-relaxed">Seus dados estão salvos neste navegador. Copie o código abaixo para salvar externamente ou cole um código para restaurar.</p>
+            <div class="space-y-6">
+                <div class="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                    <label class="block text-xs font-bold uppercase mb-2 text-gray-500 tracking-wider">1. Salvar (Copiar Código)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="export-data" readonly class="w-full bg-white border border-gray-300 text-gray-500 text-xs p-3 rounded-lg font-mono focus:outline-none shadow-inner" value="...">
+                        <button onclick="copyToClipboard()" class="bg-black text-white px-5 rounded-lg text-xs font-bold hover:bg-gray-800 transition">Copiar</button>
+                    </div>
+                    <div id="copy-msg" class="hidden text-green-600 text-[10px] font-bold mt-2 text-center flex items-center justify-center gap-1"><i class="fas fa-check-circle"></i> Copiado com sucesso!</div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase mb-2 text-gray-500 tracking-wider">2. Restaurar (Colar Código)</label>
+                    <textarea id="import-data" rows="3" class="w-full border border-gray-300 p-3 rounded-lg text-xs font-mono focus:ring-2 focus:ring-black outline-none shadow-sm transition" placeholder="Cole aqui seu código de backup..."></textarea>
+                    <button onclick="importData()" class="mt-4 w-full bg-blue-600 text-white py-3.5 rounded-lg font-bold text-sm hover:bg-blue-700 transition shadow-lg flex items-center justify-center gap-2"><i class="fas fa-sync-alt"></i> Restaurar Dados</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[100] modal backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 m-4 border border-gray-200 text-center">
+            <div class="mb-5 w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto text-4xl">🗑️</div>
+            <h3 class="text-xl font-black text-gray-900 mb-2">Excluir Item?</h3>
+            <p class="text-sm text-gray-500 mb-8 leading-relaxed">Esta ação removerá o item permanentemente. Você pode desfazer imediatamente usando Ctrl+Z.</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeDeleteModal()" class="px-6 py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition">Cancelar</button>
+                <button id="confirm-delete-btn" class="px-6 py-3 rounded-xl font-bold text-sm bg-red-600 text-white hover:bg-red-700 shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5">Sim, Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Review Scheduler Modal -->
+    <div id="review-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[100] modal backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 m-4 border border-gray-200 text-center">
+            <div class="mb-5 w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto text-4xl">📅</div>
+            <h3 class="text-xl font-black text-gray-900 mb-2">Tarefa Concluída!</h3>
+            <p class="text-sm text-gray-500 mb-6">Deseja agendar uma revisão espaçada?</p>
+            <div class="grid gap-3">
+                <button onclick="scheduleReview(10)" class="w-full py-3.5 rounded-xl font-bold text-sm bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition flex justify-between px-6"><span>Difícil</span> <span>10 dias</span></button>
+                <button onclick="scheduleReview(15)" class="w-full py-3.5 rounded-xl font-bold text-sm bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border border-yellow-200 transition flex justify-between px-6"><span>Médio</span> <span>15 dias</span></button>
+                <button onclick="scheduleReview(20)" class="w-full py-3.5 rounded-xl font-bold text-sm bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition flex justify-between px-6"><span>Fácil</span> <span>20 dias</span></button>
+                <button onclick="closeReviewModal()" class="w-full py-3 rounded-xl font-bold text-xs text-gray-400 hover:text-gray-600 mt-2 hover:bg-gray-50 transition">Não agendar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Day Details Modal -->
+    <div id="day-details-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[100] modal backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 m-4 border border-gray-200 flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                <h3 class="text-xl font-black text-gray-900 flex items-center gap-2" id="details-date-title">📅 Detalhes do Dia</h3>
+                <button onclick="closeDayDetailsModal()" class="text-gray-400 hover:text-black w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition text-lg leading-none">✕</button>
+            </div>
+            <div class="overflow-y-auto flex-1 space-y-6 pr-2" id="details-content">
+                <!-- Content injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Overlay -->
+    <div id="settings-overlay" class="settings-overlay" onclick="closeSettingsSidebar()"></div>
+
+    <!-- Settings Sidebar (right) -->
+    <div id="settings-sidebar" class="settings-sidebar">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center bg-slate-900 text-white">
+            <h3 class="font-black text-lg flex items-center gap-2">⚙️ Configurações</h3>
+            <button onclick="closeSettingsSidebar()" class="text-gray-300 hover:text-white transition text-xl leading-none">✕</button>
+        </div>
+        <div class="p-6 space-y-6">
+            <div>
+                <h4 class="text-xs font-bold uppercase text-gray-400 tracking-widest mb-4">Aparência</h4>
+                <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-gray-50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">🌙</div>
+                        <div>
+                            <div class="font-bold text-sm text-slate-800">Modo Noturno</div>
+                            <div class="text-xs text-gray-400">Tema escuro para a interface</div>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="dark-mode-toggle" class="sr-only peer" onchange="toggleDarkMode(this.checked)">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900"></div>
+                    </label>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-xs font-bold uppercase text-gray-400 tracking-widest mb-4">Dados</h4>
+                <button onclick="closeSettingsSidebar(); openBackupModal();" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-200 text-gray-700 font-bold text-sm transition">
+                    ☁️ Backup / Restaurar Dados
+                </button>
+            </div>
+            <div>
+                <h4 class="text-xs font-bold uppercase text-gray-400 tracking-widest mb-4">Sobre</h4>
+                <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-500 space-y-1">
+                    <div><span class="font-bold">Versão:</span> Master V12 (Gold)</div>
+                    <div><span class="font-bold">Início:</span> 01/02/2026</div>
+                    <div><span class="font-bold">Semanas:</span> 43 semanas</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reminder Balloon -->
+    <div class="reminder-balloon">
+        <div id="reminder-panel" class="reminder-panel">
+            <div class="flex justify-between items-center mb-4">
+                <h4 class="font-black text-sm text-slate-800 flex items-center gap-2">🔔 Lembretes</h4>
+                <button onclick="toggleReminderPanel()" class="text-gray-400 hover:text-gray-600 text-sm text-base leading-none">✕</button>
+            </div>
+            <div id="reminder-list" class="mb-4 max-h-48 overflow-y-auto"></div>
+            <div class="space-y-2 border-t border-gray-100 pt-4">
+                <input type="text" id="reminder-text" placeholder="Novo lembrete..." class="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50">
+                <input type="date" id="reminder-date" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50">
+                <select id="reminder-type" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50">
+                    <option value="day">Hoje</option>
+                    <option value="week">Esta Semana</option>
+                    <option value="future">Data Futura</option>
+                </select>
+                <button onclick="addReminder()" class="w-full bg-slate-900 text-white py-2 rounded-xl text-xs font-bold hover:bg-slate-800 transition">Adicionar Lembrete</button>
+            </div>
+        </div>
+        <button class="reminder-fab" onclick="toggleReminderPanel()" title="Lembretes" style="position:relative">
+            🔔
+            <span id="reminder-badge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center"></span>
+        </button>
+    </div>
+
+    <!-- Remanejamento Modal -->
+    <div id="remanejo-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[100] modal backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 m-4 border border-gray-200 flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-xl font-black text-gray-900 flex items-center gap-2">✨ Remanejamento Inteligente</h3>
+                <button onclick="closeRemanejoModal()" class="text-gray-400 hover:text-black w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition text-lg leading-none">✕</button>
+            </div>
+            <p class="text-xs text-gray-400 mb-6">Sugestão automática de reorganização baseada em carga das semanas.</p>
+            <div id="remanejo-content" class="overflow-y-auto flex-1"></div>
+            <div class="flex gap-3 mt-6 border-t border-gray-100 pt-4">
+                <button onclick="closeRemanejoModal()" class="flex-1 py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition">Recusar</button>
+                <button id="remanejo-accept-btn" onclick="applyRemanejo()" class="flex-1 py-3 rounded-xl font-bold text-sm bg-purple-600 text-white hover:bg-purple-700 transition">Aceitar Sugestão</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIG
+        const STORAGE_KEY = 'cronograma_2026_master_v12';
+        // startDate is dynamic — reads from onboardingData saved in state
+        // Falls back to Feb 1 2026 if not set
+        function getStartDate() {
+            if (state && state.onboardingData && state.onboardingData.startDate) {
+                return new Date(state.onboardingData.startDate + 'T00:00:00');
+            }
+            return new Date(2026, 1, 1);
+        }
+        // Keep a legacy const alias so existing code using startDate still works
+        // (renderCalendar, etc. — they reference the const directly in some places)
+        // We override getWeekDateRange and getWeekDates to use getStartDate() instead
+        const startDate = new Date(2026, 1, 1); // legacy fallback only
+        
+        // As 5 Grandes Áreas (Strict for Button Cycle)
+        const mainCategories = ["Cirurgia", "Clínica", "Ginecologia e Obstetrícia", "Pediatria", "Preventiva"];
+        
+        // STATE DECLARATION (GLOBAL FIX)
+        window.state = { weeks: [], progress: {}, dailyStats: {}, highYieldProgress: {} };
+
+        // Mapeamento para Filtro e Estatísticas
+        const areaMapping = {
+            "Cirurgia": "Cirurgia", "Urologia": "Cirurgia", "Ortopedia": "Cirurgia", "Trauma": "Cirurgia", "Cirurgia Pediátrica": "Cirurgia", "Cirurgia Plástica": "Cirurgia", "Cirurgia Vascular": "Cirurgia", "Cirurgia Torácica": "Cirurgia",
+            "Clínica": "Clínica", "Cardiologia": "Clínica", "Endocrino": "Clínica", "Gastro": "Clínica", "Hemato": "Clínica", "Infecto": "Clínica", "Nefrologia": "Clínica", "Neuro": "Clínica", "Pneumo": "Clínica", "Psiquiatria": "Clínica", "Reumato": "Clínica", "Dermato": "Clínica", "Hepato": "Clínica", "Oftalmo": "Clínica", "Otorrino": "Clínica",
+            "Ginecologia": "Ginecologia e Obstetrícia", "Obstetrícia": "Ginecologia e Obstetrícia", "Ginecologia e Obstetrícia": "Ginecologia e Obstetrícia",
+            "Pediatria": "Pediatria",
+            "Preventiva": "Preventiva"
+        };
+        
+        let pendingDeleteAction = null;
+        let pendingReviewTaskId = null;
+        let currentCalendarDate = new Date();
+        let searchFilterArea = 'Todas';
+
+        // --------------------------------------------------------
+        // DATA POPULATION
+        // --------------------------------------------------------
+        const initialStudyData = [
+            // FASE 1: CIRURGIA (9 Semanas)
+            { week: 1, phase: "Internato Cirurgia", title: "Bases & Oftalmo/Otorrino", tasks: [
+                { category: "Cirurgia", subject: "Pré-operatório, Prescrição e Hidratação" },
+                { category: "Cirurgia", subject: "Resposta Metabólica (REMT) e Cicatrização" },
+                { category: "Oftalmo", subject: "Anatomia e Catarata" },
+                { category: "Oftalmo", subject: "Olho Vermelho e Traumas" },
+                { category: "Otorrino", subject: "Otites e Perdas Auditivas" },
+                { category: "Preventiva", subject: "História do SUS" },
+                { category: "Pediatria", subject: "Imunizações (Calendário Vacinal)" },
+                { category: "Cardiologia", subject: "HAS: Diagnóstico e Classificação" }
+            ]},
+            { week: 2, phase: "Internato Cirurgia", title: "Hérnias & Oftalmo/Otorrino II", tasks: [
+                { category: "Cirurgia", subject: "Hérnias da Parede Abdominal" },
+                { category: "Oftalmo", subject: "Glaucoma e Estrabismo" },
+                { category: "Otorrino", subject: "Rinites e Rinossinusites" },
+                { category: "Pediatria", subject: "Aleitamento Materno" },
+                { category: "Infecto", subject: "Antibióticos Básicos" },
+                { category: "Endocrino", subject: "Introdução ao Diabetes" },
+                { category: "Gastro", subject: "Disfagia e Esôfago" }
+            ]},
+            { week: 3, phase: "Internato Cirurgia", title: "Estômago & Crescimento", tasks: [
+                { category: "Cirurgia", subject: "Doença Ulcerosa Péptica e Câncer Gástrico" },
+                { category: "Otorrino", subject: "Laringites e Câncer" },
+                { category: "Pediatria", subject: "Crescimento (Puericultura)" },
+                { category: "Preventiva", subject: "Princípios e Diretrizes do SUS" },
+                { category: "Cardiologia", subject: "HAS: Tratamento" },
+                { category: "Nefrologia", subject: "Doença Renal Crônica I" }
+            ]},
+            { week: 4, phase: "Internato Cirurgia", title: "Vias Biliares & Puberdade", tasks: [
+                { category: "Cirurgia", subject: "Vesícula e Vias Biliares" },
+                { category: "Cirurgia", subject: "Colecistite e Colangite" },
+                { category: "Pediatria", subject: "Puberdade" },
+                { category: "Infecto", subject: "Tuberculose Pulmonar e Extrapulmonar" },
+                { category: "Endocrino", subject: "DM2 e Tratamento" },
+                { category: "Neuro", subject: "Semiologia Neurológica" },
+                { category: "Preventiva", subject: "Marcos Legais do SUS" }
+            ]},
+            { week: 5, phase: "Internato Cirurgia", title: "Coloprocto & Desnutrição", tasks: [
+                { category: "Cirurgia", subject: "Câncer Colorretal e Doença Diverticular" },
+                { category: "Cirurgia", subject: "Doença Inflamatória Intestinal (Cirúrgico)" },
+                { category: "Pediatria", subject: "Diagnóstico Nutricional" },
+                { category: "Cardiologia", subject: "HAS Secundária e Crise Hipertensiva" },
+                { category: "Pneumo", subject: "Introdução à Pneumologia" },
+                { category: "Gastro", subject: "DRGE e Esofagites" }
+            ]},
+            { week: 6, phase: "Internato Cirurgia", title: "Apendicite & DNPM", tasks: [
+                { category: "Cirurgia", subject: "Apendicite Aguda" },
+                { category: "Cirurgia", subject: "Obstrução Intestinal" },
+                { category: "Pediatria", subject: "Desenvolvimento Neuropsicomotor (DNPM)" },
+                { category: "Infecto", subject: "Leptospirose" },
+                { category: "Endocrino", subject: "Insulinoterapia" },
+                { category: "Preventiva", subject: "Financiamento do SUS" }
+            ]},
+            { week: 7, phase: "Internato Cirurgia", title: "Vascular & Isquemia", tasks: [
+                { category: "Cirurgia", subject: "Isquemia Mesentérica" },
+                { category: "Cirurgia", subject: "Cirurgia Vascular (DAOP, Aneurismas)" },
+                { category: "Pediatria", subject: "Deficiências Vitamínicas" },
+                { category: "Cardiologia", subject: "Insuficiência Cardíaca: Diagnóstico" },
+                { category: "Nefrologia", subject: "DRC Parte II" }
+            ]},
+            { week: 8, phase: "Internato Cirurgia", title: "Abdome Agudo & Neonatal", tasks: [
+                { category: "Cirurgia", subject: "Urgências Abdominais (Geral)" },
+                { category: "Cirurgia", subject: "Complicações Pós-Operatórias" },
+                { category: "Pediatria", subject: "Cuidados Neonatais" },
+                { category: "Infecto", subject: "Malária" },
+                { category: "Endocrino", subject: "Complicações Agudas DM" },
+                { category: "Neuro", subject: "Coma e Consciência" }
+            ]},
+            { week: 9, phase: "Internato Cirurgia", title: "Cirurgia Pediátrica & Reanimação", tasks: [
+                { category: "Cirurgia", subject: "Malformações Congênitas" },
+                { category: "Cirurgia", subject: "Cirurgia Pediátrica (Geral)" },
+                { category: "Pediatria", subject: "Reanimação Neonatal" },
+                { category: "Preventiva", subject: "Regionalização do SUS" },
+                { category: "Cardiologia", subject: "IC Tratamento" },
+                { category: "Simulado", subject: "Simulado 01: Fim do Ciclo Cirurgia" }
+            ]},
+            // FASE 2: G.O.
+            { week: 10, phase: "Internato G.O.", title: "Obstetrícia I & Respiratório Neo", tasks: [{ category: "Obstetrícia", subject: "Diagnóstico e Modificações Fisiológicas" }, { category: "Pediatria", subject: "Distúrbios Respiratórios do Neonato" }, { category: "Infecto", subject: "Síndrome Febril Íctero-Hemorrágica" }, { category: "Endocrino", subject: "Complicações Crônicas DM" }, { category: "Gastro", subject: "Gastrites e Dispepsia" }, { category: "Reumato", subject: "Introdução à Reumatologia" }]},
+            { week: 11, phase: "Internato G.O.", title: "Pré-Natal & Parto", tasks: [{ category: "Obstetrícia", subject: "Pré-Natal de Baixo Risco" }, { category: "Obstetrícia", subject: "Assistência ao Parto" }, { category: "Ginecologia", subject: "Anatomia e Embriologia" }, { category: "Ginecologia", subject: "Dor Pélvica e Dismenorreia" }, { category: "Pediatria", subject: "Distúrbios Metabólicos Neonatais" }, { category: "Preventiva", subject: "Atenção Primária à Saúde (APS)" }, { category: "Cardiologia", subject: "Insuficiência Cardíaca Aguda" }]},
+            { week: 12, phase: "Internato G.O.", title: "Puerpério & Abdome Ginecológico", tasks: [{ category: "Obstetrícia", subject: "Puerpério Fisiológico e Patológico" }, { category: "Ginecologia", subject: "Abdome Agudo Ginecológico" }, { category: "Pediatria", subject: "Infecções Congênitas (TORCH)" }, { category: "Infecto", subject: "Neutropenia Febril" }, { category: "Nefrologia", subject: "Lesão Renal Aguda (LRA)" }]},
+            { week: 13, phase: "Internato G.O.", title: "Bacia & Fórceps", tasks: [{ category: "Obstetrícia", subject: "Bacia e Estática Fetal" }, { category: "Obstetrícia", subject: "Parto Vaginal Operatório" }, { category: "Pediatria", subject: "Icterícia e Sepse Neonatal" }, { category: "Preventiva", subject: "Políticas Nacionais de Saúde" }, { category: "Cardiologia", subject: "Dislipidemias" }, { category: "Neuro", subject: "Cefaleias" }]},
+            { week: 14, phase: "Internato G.O.", title: "Ciclo Menstrual & Violência", tasks: [{ category: "Ginecologia", subject: "Ciclo Menstrual e Fisiologia" }, { category: "Ginecologia", subject: "Violência Sexual" }, { category: "Pediatria", subject: "Síndromes Genéticas" }, { category: "Infecto", subject: "HIV/AIDS" }, { category: "Endocrino", subject: "Controle Glicêmico Perioperatório" }, { category: "Gastro", subject: "H. Pylori e IBP" }]},
+            { week: 15, phase: "Internato G.O.", title: "Miomatose & Pneumonias Ped", tasks: [{ category: "Ginecologia", subject: "Miomatose Uterina" }, { category: "Obstetrícia", subject: "Indução do Parto e Pós-Datismo" }, { category: "Pediatria", subject: "Pneumonias na Infância" }, { category: "Preventiva", subject: "MFC: Ferramentas e Abordagem" }, { category: "Cardiologia", subject: "DAC Estável" }, { category: "Pneumo", subject: "Derrame Pleural" }]},
+            { week: 16, phase: "Internato G.O.", title: "Adenomiose & SUA", tasks: [{ category: "Ginecologia", subject: "Adenomiose" }, { category: "Ginecologia", subject: "Sangramento Uterino Anormal (SUA)" }, { category: "Pediatria", subject: "Bronquiolite Viral Aguda" }, { category: "Infecto", subject: "Endocardite Infecciosa" }, { category: "Endocrino", subject: "Tireoide: Nódulos e Câncer" }, { category: "Nefrologia", subject: "Infecção do Trato Urinário (ITU)" }]},
+            { week: 17, phase: "Internato G.O.", title: "Endometriose & Amenorreia", tasks: [{ category: "Ginecologia", subject: "Endometriose" }, { category: "Ginecologia", subject: "Amenorreia" }, { category: "Obstetrícia", subject: "Hemorragia Pós-Parto" }, { category: "Pediatria", subject: "Coqueluche" }, { category: "Preventiva", subject: "Saúde do Idoso" }, { category: "Cardiologia", subject: "SCA sem Supra de ST" }]},
+            { week: 18, phase: "Internato G.O.", title: "Mastologia & Asma Ped", tasks: [{ category: "Ginecologia", subject: "Doenças Benignas da Mama" }, { category: "Ginecologia", subject: "Câncer de Mama: Rastreio e Diagnóstico" }, { category: "Pediatria", subject: "Asma na Infância" }, { category: "Infecto", subject: "Arboviroses" }, { category: "Endocrino", subject: "Hipotireoidismo" }, { category: "Gastro", subject: "Pâncreas e Neoplasias" }, { category: "Neuro", subject: "Demências" }]},
+            { week: 19, phase: "Internato G.O.", title: "SOP & Infecção Puerperal", tasks: [{ category: "Ginecologia", subject: "Síndrome dos Ovários Policísticos (SOP)" }, { category: "Obstetrícia", subject: "Infecção Puerperal" }, { category: "Pediatria", subject: "Fibrose Cística" }, { category: "Preventiva", subject: "Ética Médica" }, { category: "Cardiologia", subject: "IAM com Supra de ST" }]},
+            { week: 20, phase: "Internato G.O.", title: "Urogineco & Exantemáticas", tasks: [{ category: "Ginecologia", subject: "Incontinência Urinária" }, { category: "Ginecologia", subject: "Prolapsos Genitais" }, { category: "Pediatria", subject: "Doenças Exantemáticas" }, { category: "Infecto", subject: "Pneumonias Bacterianas Adulto" }, { category: "Endocrino", subject: "Hipertireoidismo" }, { category: "Nefrologia", subject: "Distúrbios Ácido-Básicos" }, { category: "Pneumo", subject: "DPOC" }]},
+            { week: 21, phase: "Internato G.O.", title: "Planejamento & Sangramento 1ª Metade", tasks: [{ category: "Ginecologia", subject: "Anticoncepção" }, { category: "Obstetrícia", subject: "Sangramento 1ª Metade (Aborto, Ectópica, Mola)" }, { category: "Pediatria", subject: "Tuberculose na Infância" }, { category: "Preventiva", subject: "Processo Saúde-Doença" }, { category: "Cardiologia", subject: "Semiologia Cardíaca" }, { category: "Simulado", subject: "Simulado 02: Fim do Ciclo G.O." }]},
+            // FASE 3: URGÊNCIA
+            { week: 22, phase: "Internato Urgência", title: "ATLS & Choque & Febre Ped", tasks: [{ category: "Cirurgia", subject: "Trauma: ATLS Avaliação Inicial e Vias Aéreas" }, { category: "Cirurgia", subject: "Choque: Classificação e Manejo" }, { category: "Pediatria", subject: "Febre e Bacteremia Oculta" }, { category: "Infecto", subject: "Animais Peçonhentos" }, { category: "Ginecologia", subject: "Climatério (Revisão)" }]},
+            { week: 23, phase: "Internato Urgência", title: "Trauma Abd & Cardiopatias", tasks: [{ category: "Cirurgia", subject: "Trauma Abdominal e Pélvico" }, { category: "Pediatria", subject: "Cardiopatias Congênitas" }, { category: "Obstetrícia", subject: "Sangramento da 2ª Metade" }, { category: "Preventiva", subject: "Indicadores de Morbidade" }, { category: "Cardiologia", subject: "Fibrilação Atrial e Flutter" }, { category: "Neuro", subject: "Epilepsias" }]},
+            { week: 24, phase: "Internato Urgência", title: "Trauma Tórax & Sepse", tasks: [{ category: "Cirurgia", subject: "Trauma Torácico" }, { category: "Infecto", subject: "Sepse e Choque Séptico" }, { category: "Pediatria", subject: "Diarreia e Desidratação" }, { category: "Cirurgia", subject: "Proctologia: Urgências" }, { category: "Endocrino", subject: "Hipercalcemia" }, { category: "Nefrologia", subject: "Gasometria Arterial" }]},
+            { week: 25, phase: "Internato Urgência", title: "Trauma Especiais & TEP", tasks: [{ category: "Cirurgia", subject: "Trauma: Gestante, Pediátrico e Idoso" }, { category: "Pneumo", subject: "Tromboembolismo Pulmonar (TEP)" }, { category: "Pediatria", subject: "DRGE em Pediatria" }, { category: "Obstetrícia", subject: "Trabalho de Parto Prematuro" }, { category: "Preventiva", subject: "Indicadores de Mortalidade" }, { category: "Cardiologia", subject: "Taquiarritmias" }]},
+            { week: 26, phase: "Internato Urgência", title: "Trauma Face & ITU Ped", tasks: [{ category: "Cirurgia", subject: "Trauma de Face e Cervical" }, { category: "Pediatria", subject: "ITU em Pediatria" }, { category: "Gastro", subject: "Síndrome do Intestino Irritável" }, { category: "Ginecologia", subject: "Síndrome Pré-Menstrual (SPM)" }, { category: "Infecto", subject: "Micoses Invasivas" }, { category: "Endocrino", subject: "Hipocalcemia" }]},
+            { week: 27, phase: "Internato Urgência", title: "Queimados & Bradi", tasks: [{ category: "Cirurgia", subject: "Queimaduras e Trauma Elétrico" }, { category: "Cardiologia", subject: "Bradiarritmias e Marcapasso" }, { category: "Pediatria", subject: "Doença de Kawasaki" }, { category: "Obstetrícia", subject: "Rotura Prematura de Membranas (RPMO)" }, { category: "Ginecologia", subject: "Cervicites e DIP" }, { category: "Preventiva", subject: "Demografia e Transição" }]},
+            { week: 28, phase: "Internato Urgência", title: "Trauma Vascular & AVC", tasks: [{ category: "Cirurgia", subject: "Trauma Vascular e Musculoesquelético" }, { category: "Neuro", subject: "AVC Isquêmico e Hemorrágico" }, { category: "Infecto", subject: "Meningites" }, { category: "Pediatria", subject: "Febre Reumática" }, { category: "Endocrino", subject: "Osteoporose" }, { category: "Nefrologia", subject: "Glomerulopatias" }]},
+            { week: 29, phase: "Internato Urgência", title: "Abdome Agudo (Revisão) & PCR", tasks: [{ category: "Cirurgia", subject: "Abdome Agudo Vascular/Hemorrágico" }, { category: "Cardiologia", subject: "Parada Cardiorrespiratória (ACLS)" }, { category: "Pediatria", subject: "Emergências: Crupe e Epiglotite" }, { category: "Obstetrícia", subject: "Abortamento de Repetição" }, { category: "Cirurgia", subject: "Urologia: Litíase" }, { category: "Preventiva", subject: "Epidemiologia: Surtos" }]},
+            { week: 30, phase: "Internato Urgência", title: "Choque Ped & Pneumo Intensiva", tasks: [{ category: "Pediatria", subject: "Choque e Sepse em Pediatria" }, { category: "Pneumo", subject: "Pneumologia Intensiva (SDRA/VNI)" }, { category: "Cirurgia", subject: "Cirurgia Plástica e Feridas" }, { category: "Infecto", subject: "Hepatoesplenomegalias" }, { category: "Endocrino", subject: "Insuficiência Adrenal" }, { category: "Gastro", subject: "Síndromes Disabsortivas" }]},
+            { week: 31, phase: "Internato Urgência", title: "Convulsão & Síncope", tasks: [{ category: "Pediatria", subject: "Convulsão Febril" }, { category: "Cardiologia", subject: "Síncope" }, { category: "Obstetrícia", subject: "Gestação Múltipla" }, { category: "Ginecologia", subject: "Úlceras Genitais" }, { category: "Cirurgia", subject: "Cirurgia Torácica" }, { category: "Preventiva", subject: "Vigilância em Saúde" }]},
+            { week: 32, phase: "Internato Urgência", title: "Anafilaxia & Cushing", tasks: [{ category: "Pediatria", subject: "Anafilaxia e Urticária" }, { category: "Endocrino", subject: "Síndrome de Cushing" }, { category: "Infecto", subject: "Influenza" }, { category: "Ginecologia", subject: "Vulvovaginites" }, { category: "Cirurgia", subject: "Oncologia Cirúrgica" }, { category: "Nefrologia", subject: "Nefrolitíase" }]},
+            { week: 33, phase: "Internato Urgência", title: "Síndromes Hipertensivas & Neuro", tasks: [{ category: "Obstetrícia", subject: "Síndromes Hipertensivas (PE/Eclâmpsia)" }, { category: "Pediatria", subject: "Hiperplasia Adrenal Congênita" }, { category: "Cardiologia", subject: "ECG Básico" }, { category: "Preventiva", subject: "Sistemas de Informação em Saúde" }, { category: "Neuro", subject: "Doenças Neuromusculares" }, { category: "Reumato", subject: "Artrite Reumatoide" }, { category: "Simulado", subject: "Simulado 03: Fim do Ciclo Urgência" }]},
+            // FASE 4: RURAL
+            { week: 34, phase: "Internato de Urgência e Emergência", title: "Alergia & Anemias", tasks: [{ category: "Pediatria", subject: "Alergia Alimentar (APLV)" }, { category: "Ginecologia", subject: "Rastreamento Câncer de Colo" }, { category: "Infecto", subject: "Parasitoses Intestinais" }, { category: "Hemato", subject: "Introdução às Anemias" }, { category: "Endocrino", subject: "Adrenal: Nódulos" }, { category: "Gastro", subject: "Doença Inflamatória Intestinal" }]},
+            { week: 35, phase: "Internato de Urgência e Emergência", title: "Obesidade Ped & Aorta", tasks: [{ category: "Pediatria", subject: "Obesidade Infantil" }, { category: "Pneumo", subject: "Asma: Manejo Ambulatorial" }, { category: "Obstetrícia", subject: "Diabetes Gestacional" }, { category: "Preventiva", subject: "Epidemiologia: Estudos" }, { category: "Cardiologia", subject: "Síndromes Aórticas Agudas" }, { category: "Reumato", subject: "Espondiloartrites" }]},
+            { week: 36, phase: "Internato de Urgência e Emergência", title: "Constipação & COVID", tasks: [{ category: "Pediatria", subject: "Constipação Intestinal" }, { category: "Infecto", subject: "COVID-19" }, { category: "Ginecologia", subject: "Câncer de Colo: Tratamento" }, { category: "Endocrino", subject: "Doenças da Hipófise" }, { category: "Nefrologia", subject: "Distúrbios do Potássio" }, { category: "Hemato", subject: "Anemias Microcíticas" }]},
+            { week: 37, phase: "Internato de Urgência e Emergência", title: "Sífilis & Parkinson", tasks: [{ category: "Pediatria", subject: "Desnutrição Grave" }, { category: "Obstetrícia", subject: "Sífilis na Gestação" }, { category: "Ginecologia", subject: "Câncer de Ovário" }, { category: "Preventiva", subject: "Testes Diagnósticos" }, { category: "Cardiologia", subject: "Choque Cardiogênico" }, { category: "Neuro", subject: "Doença de Parkinson" }]},
+            { week: 38, phase: "Internato de Urgência e Emergência", title: "HAS Ped & Gota", tasks: [{ category: "Pediatria", subject: "HAS na Criança" }, { category: "Infecto", subject: "Infecção de Sítio Cirúrgico" }, { category: "Gastro", subject: "HDA Varicosa" }, { category: "Endocrino", subject: "NEM (Neoplasias Endócrinas)" }, { category: "Reumato", subject: "Gota" }, { category: "Hemato", subject: "Anemias Macrocíticas" }]},
+            { week: 39, phase: "Internato de Urgência e Emergência", title: "Vasculite Ped & Psiquiatria", tasks: [{ category: "Pediatria", subject: "Púrpura de Hennoch-Schonlein" }, { category: "Psiquiatria", subject: "Dependência Química" }, { category: "Ginecologia", subject: "Doenças da Vulva" }, { category: "Obstetrícia", subject: "Ultrassonografia" }, { category: "Cardiologia", subject: "Cardiomiopatias" }, { category: "Preventiva", subject: "Bioestatística" }]},
+            { week: 40, phase: "Internato de Urgência e Emergência", title: "AIJ & Sódio", tasks: [{ category: "Pediatria", subject: "Artrite Idiopática Juvenil" }, { category: "Pneumo", subject: "Câncer de Pulmão" }, { category: "Infecto", subject: "Raiva e Tétano" }, { category: "Nefrologia", subject: "Distúrbios do Sódio" }, { category: "Reumato", subject: "Artrites Infecciosas" }, { category: "Hemato", subject: "Anemias Hemolíticas" }]},
+            { week: 41, phase: "Internato de Urgência e Emergência", title: "Saúde Trab & Dermato", tasks: [{ category: "Preventiva", subject: "Saúde do Trabalhador" }, { category: "Ginecologia", subject: "Câncer de Endométrio" }, { category: "Obstetrícia", subject: "Vitalidade Fetal" }, { category: "Neuro", subject: "TCE" }, { category: "Dermato", subject: "Lesões Elementares" }, { category: "Pediatria", subject: "Tópicos Avançados" }]},
+            { week: 42, phase: "Internato de Urgência e Emergência", title: "Humor & Dermato", tasks: [{ category: "Psiquiatria", subject: "Transtornos do Humor" }, { category: "Dermato", subject: "Dermatoses Infecciosas" }, { category: "Gastro", subject: "HDA Não-Varicosa" }, { category: "Ginecologia", subject: "Doenças Benignas da Mama (Revisão)" }, { category: "Reumato", subject: "Vasculites" }, { category: "Infecto", subject: "Sífilis (Revisão)" }]},
+            { week: 43, phase: "Internato de Urgência e Emergência", title: "Consolidação Final", tasks: [{ category: "Dermato", subject: "Hanseníase" }, { category: "Ortopedia", subject: "Doenças da Coluna Vertebral" }, { category: "Psiquiatria", subject: "Transtornos de Ansiedade" }, { category: "Hepato", subject: "Hepatites Virais e Cirrose" }, { category: "Hemato", subject: "Hemostasia" }, { category: "Otorrino", subject: "Infecções de Vias Aéreas (IVAS)" }, { category: "Simulado", subject: "Simulado Final" }]}
+        ];
+
+        // Temas de Alta Prevalência (lista base; agora gerada dinamicamente pelo foguinho)
+        const prevalenceTopics = {
+            "PEDIATRIA": ["Imunizações", "Aleitamento Materno", "Crescimento", "Pneumonias na Infância", "Asma na Infância", "Diarreia e Desidratação"],
+            "CIRURGIA": ["Trauma: ATLS Avaliação Inicial e Vias Aéreas", "Urgências Abdominais (Geral)", "Apendicite Aguda", "Queimaduras e Trauma Elétrico", "Hérnias da Parede Abdominal", "Câncer Colorretal e Doença Diverticular"],
+            "PREVENTIVA": ["História do SUS", "Atenção Primária à Saúde (APS)", "Vigilância em Saúde", "Ética Médica", "Epidemiologia: Surtos", "Saúde do Trabalhador"],
+            "GINECOLOGIA E OBSTETRÍCIA": ["Pré-Natal de Baixo Risco", "Assistência ao Parto", "Sangramento 1ª Metade (Aborto, Ectópica, Mola)", "Sangramento da 2ª Metade", "Síndromes Hipertensivas (PE/Eclâmpsia)", "Rastreamento Câncer de Colo", "Câncer de Mama: Rastreio e Diagnóstico", "Anticoncepção", "Incontinência Urinária"],
+            "CLÍNICA": ["HAS: Diagnóstico e Classificação", "Introdução ao Diabetes", "Insuficiência Cardíaca: Diagnóstico", "Tuberculose Pulmonar e Extrapulmonar", "HIV/AIDS", "Sepse e Choque Séptico"]
+        };
+
+        let state = { weeks: [], progress: {}, dailyStats: {}, highYieldProgress: {} };
+        let undoStack = [], redoStack = [];
+        let activeView = 'dashboard';
+        let activeWeek = 0;
+
+        window.getAccuracyColorClass = function(percentage) {
+            if (percentage >= 90) return 'text-emerald-800';
+            if (percentage >= 80) return 'text-green-500';
+            if (percentage >= 60) return 'text-yellow-600';
+            return 'text-red-600';
+        }
+
+        window.calculateAccuracy = function(done, correct) { if (!done || done <= 0) return 0; return Math.min(100, Math.round((correct / done) * 100)); }
+        window.getWeekDateRange = function(weekIndex) { if (weekIndex < 1) return ""; const sd = getStartDate(); const start = new Date(sd); start.setDate(sd.getDate() + (weekIndex - 1) * 7); const end = new Date(start); end.setDate(start.getDate() + 6); const fmt = d => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); return `${fmt(start)} a ${fmt(end)}`; }
+        window.getWeekDates = function(weekIdx) { const start = getStartDate(); const baseDate = new Date(start); baseDate.setDate(start.getDate() + ((weekIdx - 1) * 7) - 1); const days = []; const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]; for(let i=0; i<7; i++) { const d = new Date(baseDate); d.setDate(baseDate.getDate() + i); days.push({ name: dayNames[i], date: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), key: `d${i}` }); } return days; }
+        window.getTodayStr = function() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+        window.assignIds = function(weeksData) { weeksData.forEach((week, wIdx) => { week.tasks.forEach((task, tIdx) => { if (!task.id) task.id = `task_${wIdx}_${tIdx}_${Date.now()}`; }); }); }
+        window.setAgendaCell = function(week, dayKey, slotIdx, text, color) { week.agenda[`${dayKey}_s${slotIdx}`] = { text: text, color: color || "#ffffff" }; }
+        window.populateDefaultAgenda = function(weeksData) { weeksData.forEach((week, wIdx) => { if(!week.agenda) week.agenda = {}; if(!week.timeSlots) week.timeSlots = ["07:00 - 12:00", "13:00 - 17:00", "17:00 - 19:00", "19:00 - 21:00"]; if (wIdx + 1 <= 9) { ['d1','d2','d3','d4','d5'].forEach(d => { setAgendaCell(week, d, 0, "Cirurgia", "#fed7aa"); }); setAgendaCell(week, 'd1', 1, "Otorrino", "#bae6fd"); setAgendaCell(week, 'd2', 1, "Estudo Livre", "#ffffff"); setAgendaCell(week, 'd3', 1, "Estudo Livre", "#ffffff"); setAgendaCell(week, 'd4', 1, "Oftalmo", "#c7d2fe"); setAgendaCell(week, 'd5', 1, "Propedêutica", "#fbcfe8"); } else if (wIdx + 1 <= 21) { setAgendaCell(week, 'd1', 0, "Propedêutica", "#fbcfe8"); setAgendaCell(week, 'd2', 0, "AMB OB", "#fde047"); setAgendaCell(week, 'd3', 0, "Internato", "#bbf7d0"); setAgendaCell(week, 'd4', 0, "Plantão GO", "#fef08a"); setAgendaCell(week, 'd5', 0, "Internato", "#bbf7d0"); setAgendaCell(week, 'd1', 1, "Reumato", "#c7d2fe"); setAgendaCell(week, 'd2', 1, "AMB GINECO", "#fde047"); setAgendaCell(week, 'd3', 1, "Ortopedia", "#bae6fd"); setAgendaCell(week, 'd4', 1, "Plantão GO", "#fef08a"); setAgendaCell(week, 'd5', 1, "CC", "#fde047"); setAgendaCell(week, 'd2', 3, "Plantão GO", "#fef08a"); } else { ['d1','d2','d3','d4','d5'].forEach(d => { setAgendaCell(week, d, 0, "Internato", "#e5e7eb"); }); } }); }
+        window.ensureProgress = function(id) { if (!state.progress[id]) state.progress[id] = {}; }
+
+        // --- ENFORCE CRUCIAL STATUS ON INIT ---
+        window.enforceCrucialStatus = function() {
+            const allHighYieldSubjects = Object.values(prevalenceTopics).flat();
+            state.weeks.forEach(w => {
+                w.tasks.forEach(t => {
+                    // Check if subject matches or contains any High Yield topic string
+                    // Using exact match or includes for flexibility
+                    const isHighYield = allHighYieldSubjects.some(hy => t.subject === hy || t.subject.includes(hy));
+                    if (isHighYield) {
+                        ensureProgress(t.id);
+                        if (!state.progress[t.id].crucial) {
+                            state.progress[t.id].crucial = true; // Auto-set crucial
+                        }
+                    }
+                });
+            });
+        }
+
+        window.initState = function() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) { 
+                state = JSON.parse(saved); 
+                if (!Array.isArray(state.weeks) || state.weeks.length === 0) { 
+                    state.weeks = JSON.parse(JSON.stringify(initialStudyData)); 
+                    assignIds(state.weeks); 
+                    populateDefaultAgenda(state.weeks); 
+                }
+            } else { 
+                state.weeks = JSON.parse(JSON.stringify(initialStudyData)); 
+                assignIds(state.weeks); 
+                state.progress = {}; 
+                state.dailyStats = {}; 
+                state.highYieldProgress = {}; 
+                populateDefaultAgenda(state.weeks); 
+                save(true); 
+            }
+            // Enforce logic every init
+            enforceCrucialStatus();
+            save(true);
+        }
+        window.save = function(skipStack) { if(!skipStack) pushState(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+        window.pushState = function() { undoStack.push(JSON.stringify(state)); if(undoStack.length > 50) undoStack.shift(); redoStack = []; }
+        window.undo = function() { if(undoStack.length === 0) return; redoStack.push(JSON.stringify(state)); state = JSON.parse(undoStack.pop()); save(true); updateUI(); }
+        window.redo = function() { if(redoStack.length === 0) return; undoStack.push(JSON.stringify(state)); state = JSON.parse(redoStack.pop()); save(true); updateUI(); }
+        window.handleGlobalKeydown = function(e) { if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); } if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); } }
+
+        window.updateAgendaGlobal = function(weekIdx, dayKey, slotIdx, newText, newColor) { const week = state.weeks.find(w => w.week === weekIdx); if (!week) return; const key = `${dayKey}_s${slotIdx}`; if(!week.agenda[key]) week.agenda[key] = {text: "", color: "#ffffff"}; if (newText !== null) week.agenda[key].text = newText; if (newColor !== null) week.agenda[key].color = newColor; save(); updateUI(); }
+        window.addAgendaRowAt = function(weekIdx, index) { const week = state.weeks.find(w => w.week === weekIdx); week.timeSlots.splice(index + 1, 0, "00:00 - 00:00"); const newAgenda = {}; Object.keys(week.agenda).forEach(key => { const [d, sStr] = key.split('_'); const s = parseInt(sStr.substring(1)); if (s > index) { newAgenda[`${d}_s${s+1}`] = week.agenda[key]; } else { newAgenda[key] = week.agenda[key]; } }); week.agenda = newAgenda; save(); updateUI(); }
+        window.requestRemoveAgendaRow = function(weekIdx, index) { openDeleteModal(() => { const week = state.weeks.find(w => w.week === weekIdx); week.timeSlots.splice(index, 1); const newAgenda = {}; Object.keys(week.agenda).forEach(key => { const [d, sStr] = key.split('_'); const s = parseInt(sStr.substring(1)); if (s < index) { newAgenda[key] = week.agenda[key]; } else if (s > index) { newAgenda[`${d}_s${s-1}`] = week.agenda[key]; } }); week.agenda = newAgenda; save(); updateUI(); }); }
+        window.updateTimeSlot = function(weekIdx, slotIdx, newVal) { const week = state.weeks.find(w => w.week === weekIdx); week.timeSlots[slotIdx] = newVal; save(); }
+        window.formatText = function(cmd, value=null) { document.execCommand(cmd, false, value); }
+        window.applyColor = function(color) { const selection = window.getSelection(); if(selection.rangeCount > 0) { const node = selection.anchorNode; const cell = node.nodeType === 1 ? node : node.parentElement; const td = cell.closest('.agenda-cell'); if(td) { td.style.backgroundColor = color; const parts = td.id.split('_'); updateAgendaGlobal(parseInt(parts[1]), parts[2], parseInt(parts[3]), null, color); } } }
+        window.triggerApplyColor = function() { const color = document.getElementById('colorPickerTool').value; applyColor(color); }
+
+        window.updateTaskName = function(weekIdx, taskIdx, newName) { const week = state.weeks.find(w => w.week === weekIdx); if(week && week.tasks[taskIdx]) { week.tasks[taskIdx].subject = newName; save(); } };
+        window.cycleTaskCategory = function(weekIdx, taskIdx) {
+            const week = state.weeks.find(w => w.week === weekIdx);
+            if(week && week.tasks[taskIdx]) {
+                const cats = mainCategories; // Use only the 5 main areas
+                // Map current category to main area to find index, or default to 0
+                let currentCat = week.tasks[taskIdx].category;
+                // If current category is a sub-specialty (e.g. Oftalmo), map it to main first?
+                // Or just cycle from index 0 if not found in main list.
+                let currentIdx = cats.indexOf(currentCat);
+                if (currentIdx === -1) {
+                    // Try mapping
+                    const mapped = areaMapping[currentCat];
+                    if (mapped) currentIdx = cats.indexOf(mapped);
+                }
+                if (currentIdx === -1) currentIdx = 0;
+                
+                let nextIdx = (currentIdx + 1) % cats.length;
+                week.tasks[taskIdx].category = cats[nextIdx];
+                save(); updateUI();
+            }
+        };
+        window.addTask = function(weekIdx) { const week = state.weeks.find(w => w.week === weekIdx); const newId = `task_${weekIdx-1}_${Date.now()}_new`; week.tasks.push({ id: newId, category: "Cirurgia", subject: "Novo Tema (Editar)" }); save(); updateUI(); };
+        window.requestDeleteTask = function(weekIdx, taskIdx) { openDeleteModal(() => { const week = state.weeks.find(w => w.week === weekIdx); if (week) { week.tasks.splice(taskIdx, 1); save(); updateUI(); if(activeView === 'search') renderSearch(); } }); };
+        window.toggleCrucial = function(taskId) { ensureProgress(taskId); state.progress[taskId].crucial = !state.progress[taskId].crucial; save(); updateUI(); };
+        window.updateTaskQuestions = function(taskId, newVal) { const currentVal = parseInt(newVal) || 0; ensureProgress(taskId); const oldVal = parseInt(state.progress[taskId].done) || 0; const diff = currentVal - oldVal; state.progress[taskId].done = currentVal; if (diff > 0) { const today = getTodayStr(); state.dailyStats[today] = (state.dailyStats[today] || 0) + diff; } save(); updateUI(); };
+        window.addDailyQuestions = function() { const date = document.getElementById('stats-date').value; const count = parseInt(document.getElementById('stats-count').value); if(date && count) { state.dailyStats[date] = (state.dailyStats[date] || 0) + count; save(); updateUI(); document.getElementById('stats-count').value = ''; } };
+        window.updateScore = function(id, type, val) { ensureProgress(id); state.progress[id][type] = val; save(); updateUI(); }
+        window.toggleTask = function(id) { ensureProgress(id); const newStatus = !state.progress[id].doneStatus; state.progress[id].doneStatus = newStatus; if(newStatus) { state.progress[id].completedDate = getTodayStr(); openReviewModal(id); } else { delete state.progress[id].completedDate; } save(); updateUI(); }
+        window.toggleSubTask = function(idSuffix) { const parts = idSuffix.split('_'); const type = 'sub_' + parts.pop(); const id = parts.join('_'); ensureProgress(id); state.progress[id][type] = !state.progress[id][type]; save(); updateUI(); }
+        window.toggleHighYield = function(key) { state.highYieldProgress[key] = !state.highYieldProgress[key]; save(); renderPrevalenceTable(); }
+        window.completeReview = function(taskId) { if(state.progress[taskId]) { delete state.progress[taskId].nextReview; save(); updateUI(); } };
+
+        window.prevMonth = function() { currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1); renderCalendar(currentCalendarDate); }
+        window.nextMonth = function() { currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1); renderCalendar(currentCalendarDate); }
+        window.openDayDetails = function(dateStr) {
+            const date = new Date(dateStr + "T12:00:00");
+            const dateFmt = date.toLocaleDateString('pt-BR');
+            document.getElementById('details-date-title').innerHTML = `<i class="far fa-calendar-alt text-blue-600"></i> Detalhes: ${dateFmt}`;
+            let targetWeek = null; let targetDayKey = null;
+            state.weeks.forEach(w => { const sd2 = getStartDate(); const start = new Date(sd2); start.setDate(sd2.getDate() + (w.week - 1) * 7); const end = new Date(start); end.setDate(start.getDate() + 6); if (date >= start && date <= end) { targetWeek = w; const dayDiff = Math.floor((date - start) / (1000 * 60 * 60 * 24)); targetDayKey = `d${dayDiff}`; } });
+            let html = `<div class="mb-5"><h4 class="font-bold text-xs text-gray-400 uppercase tracking-widest mb-3">Agenda</h4>`;
+            if (targetWeek && targetDayKey) { html += `<div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-2">`; let found = false; targetWeek.timeSlots.forEach((slot, sIdx) => { const cell = targetWeek.agenda[`${targetDayKey}_s${sIdx}`]; if (cell && cell.text) { html += `<div class="flex gap-3 text-sm"><span class="font-mono font-bold text-blue-700 w-24 shrink-0 bg-blue-100/50 text-center rounded py-0.5">${slot}</span><span class="font-medium text-slate-700">${cell.text}</span></div>`; found = true; } }); if(!found) html += `<div class="text-sm text-gray-400 italic text-center py-2">Nada agendado para hoje.</div>`; html += `</div>`; } else { html += `<div class="text-sm text-gray-400 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-center">Fora do período do cronograma.</div>`; } html += `</div>`;
+            html += `<div class="mb-5"><h4 class="font-bold text-xs text-gray-400 uppercase tracking-widest mb-3">Tarefas Concluídas</h4>`;
+            const tasksDone = []; state.weeks.forEach(w => { w.tasks.forEach(t => { if (state.progress[t.id] && state.progress[t.id].completedDate === dateStr) { tasksDone.push(t); } }); });
+            if (tasksDone.length > 0) { html += `<div class="space-y-2">`; tasksDone.forEach(t => { html += `<div class="text-sm text-slate-700 bg-green-50 border border-green-100 p-2 rounded-lg flex items-center gap-2"><i class="fas fa-check-circle text-green-500"></i> <span><strong class="text-slate-900">${t.category}:</strong> ${t.subject}</span></div>`; }); html += `</div>`; } else { html += `<div class="text-sm text-gray-400 italic bg-gray-50 p-3 rounded-lg border border-gray-100 text-center">Nenhuma tarefa concluída.</div>`; } html += `</div>`;
+            const qCount = state.dailyStats[dateStr] || 0; html += `<div class="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center shadow-lg"><div><div class="text-xs text-slate-400 uppercase font-bold">Questões Realizadas</div><div class="text-2xl font-black">${qCount}</div></div><i class="fas fa-pen-alt text-3xl text-slate-700"></i></div>`;
+            document.getElementById('details-content').innerHTML = html; document.getElementById('day-details-modal').classList.remove('hidden'); document.getElementById('day-details-modal').classList.add('flex');
+        }
+        window.closeDayDetailsModal = function() { document.getElementById('day-details-modal').classList.add('hidden'); document.getElementById('day-details-modal').classList.remove('flex'); }
+        window.openDeleteModal = function(callback) { pendingDeleteAction = callback; document.getElementById('delete-modal').classList.remove('hidden'); document.getElementById('delete-modal').classList.add('flex'); }
+        window.closeDeleteModal = function() { pendingDeleteAction = null; document.getElementById('delete-modal').classList.add('hidden'); document.getElementById('delete-modal').classList.remove('flex'); }
+        window.openReviewModal = function(taskId) { pendingReviewTaskId = taskId; document.getElementById('review-modal').classList.remove('hidden'); document.getElementById('review-modal').classList.add('flex'); }
+        window.closeReviewModal = function() { pendingReviewTaskId = null; document.getElementById('review-modal').classList.add('hidden'); document.getElementById('review-modal').classList.remove('flex'); }
+        window.scheduleReview = function(days) { if(pendingReviewTaskId) { const date = new Date(); date.setDate(date.getDate() + days); const dateStr = date.toISOString().split('T')[0]; ensureProgress(pendingReviewTaskId); state.progress[pendingReviewTaskId].nextReview = dateStr; save(); updateUI(); } closeReviewModal(); }
+        document.getElementById('confirm-delete-btn').onclick = function() { if (pendingDeleteAction) pendingDeleteAction(); closeDeleteModal(); };
+
+        let draggedTask = null; let draggedAgenda = null; let sourceWeekIndex = null; let sourceTaskIndex = null;
+        window.handleDragStart = function(e, weekIdx, taskIdx) { draggedTask = state.weeks[weekIdx-1].tasks[taskIdx]; sourceWeekIndex = weekIdx-1; sourceTaskIndex = taskIdx; draggedAgenda = null; e.dataTransfer.effectAllowed = 'copyMove'; setTimeout(() => e.target.classList.add('draggable-source'), 0); }
+        window.handleDragStartAgenda = function(e, weekIdx, dayKey, slotIdx, text, color) { draggedAgenda = {weekIdx, dayKey, slotIdx, text, color}; draggedTask = null; e.dataTransfer.effectAllowed = 'copyMove'; }
+        window.handleDragEnd = function(e) { e.target.classList.remove('draggable-source'); document.querySelectorAll('.drop-target-agenda, .drop-target-task, .drop-target-week').forEach(el => el.classList.remove('drop-target-agenda', 'drop-target-task', 'drop-target-week')); }
+        window.handleDragOverWeek = function(e) { e.preventDefault(); e.currentTarget.classList.add('drop-target-week'); }
+        window.handleDragLeaveWeek = function(e) { e.currentTarget.classList.remove('drop-target-week'); }
+        window.handleDropWeek = function(e, targetWeekIdx) { e.preventDefault(); e.currentTarget.classList.remove('drop-target-week'); if (draggedTask) { const targetIndex = targetWeekIdx - 1; if (targetIndex === sourceWeekIndex) return; state.weeks[sourceWeekIndex].tasks.splice(sourceTaskIndex, 1); state.weeks[targetIndex].tasks.push(draggedTask); save(); updateUI(); resetDrag(); } }
+        window.handleDragOverTask = function(e) { e.preventDefault(); e.currentTarget.classList.add('drop-target-task'); }
+        window.handleDragLeaveTask = function(e) { e.currentTarget.classList.remove('drop-target-task'); }
+        window.handleDropTask = function(e, targetTaskIdx) { e.preventDefault(); e.currentTarget.classList.remove('drop-target-task'); if(draggedTask) { const currentWeekIdx = activeWeek - 1; if (sourceWeekIndex !== currentWeekIdx || sourceTaskIndex === targetTaskIdx) return; const tasks = state.weeks[currentWeekIdx].tasks; const [movedItem] = tasks.splice(sourceTaskIndex, 1); tasks.splice(targetTaskIdx, 0, movedItem); save(); updateUI(); resetDrag(); } }
+        window.handleDragOverAgenda = function(e) { e.preventDefault(); e.currentTarget.classList.add('drop-target-agenda'); }
+        window.handleDragLeaveAgenda = function(e) { e.currentTarget.classList.remove('drop-target-agenda'); }
+        window.handleDropAgenda = function(e, weekIdx, dayKey, slotIdx) { e.preventDefault(); e.currentTarget.classList.remove('drop-target-agenda'); const cellId = `agenda_${weekIdx}_${dayKey}_${slotIdx}`; const cell = document.getElementById(cellId); const currentText = cell.innerText.trim(); if(draggedTask) { const newText = currentText ? `${currentText}\n${draggedTask.subject}` : draggedTask.subject; updateAgendaGlobal(weekIdx, dayKey, slotIdx, newText, null); } else if (draggedAgenda) { const newText = currentText ? `${currentText}\n${draggedAgenda.text}` : draggedAgenda.text; updateAgendaGlobal(weekIdx, dayKey, slotIdx, newText, draggedAgenda.color); } }
+        window.resetDrag = function() { draggedTask = null; draggedAgenda = null; sourceWeekIndex = null; sourceTaskIndex = null; }
+        
+        window.renderCalendar = function(date) {
+            const container = document.getElementById('dashboard-calendar-container'); if(!container) return;
+            const month = date.getMonth(); const year = date.getFullYear(); const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            let html = `<div class="bg-white p-4 rounded-2xl shadow-md border border-gray-100 h-full flex flex-col hover:shadow-lg transition-shadow duration-300" style="min-width:0;overflow:hidden;"><div class="flex justify-between items-center mb-4 border-b border-gray-50 pb-3 flex-shrink-0"><button onclick="prevMonth()" class="text-gray-400 hover:text-black w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-50 transition font-bold text-lg">‹</button><span class="font-bold text-slate-800 capitalize text-base tracking-tight">${monthNames[month]} ${year}</span><button onclick="nextMonth()" class="text-gray-400 hover:text-black w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-50 transition font-bold text-lg">›</button></div><div class="calendar-grid" style="flex:1;min-width:0;"><div class="calendar-header">D</div><div class="calendar-header">S</div><div class="calendar-header">T</div><div class="calendar-header">Q</div><div class="calendar-header">Q</div><div class="calendar-header">S</div><div class="calendar-header">S</div>`;
+            let day = 1; for (let i = 0; i < firstDay; i++) html += `<div></div>`;
+            const todayStr = getTodayStr();
+            for (let i = 0; i < daysInMonth; i++) { const currentDateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`; const isToday = currentDateStr === todayStr; let hasActivity = state.dailyStats[currentDateStr] > 0; html += `<div class="calendar-day ${isToday ? 'today' : ''} ${hasActivity ? 'has-activity' : ''}" onclick="openDayDetails('${currentDateStr}')">${day}</div>`; day++; }
+            html += `</div></div>`; container.innerHTML = html;
+        }
+
+        window.renderReviews = function() {
+            const todayStr = getTodayStr(); 
+            let dueReviews = [];
+            let upcomingReviews = [];
+
+            state.weeks.forEach(w => { 
+                w.tasks.forEach(t => { 
+                    if (state.progress[t.id] && state.progress[t.id].nextReview) { 
+                        const rDate = state.progress[t.id].nextReview; 
+                        if (rDate <= todayStr) { 
+                            dueReviews.push({...t, reviewDate: rDate}); 
+                        } else {
+                            upcomingReviews.push({...t, reviewDate: rDate});
+                        }
+                    } 
+                }); 
+            });
+
+            // Sort upcoming
+            upcomingReviews.sort((a, b) => a.reviewDate.localeCompare(b.reviewDate));
+            const nextUp = upcomingReviews.slice(0, 3); // Limit to 3 for "small part"
+
+            let html = `<div class="bg-white p-5 rounded-2xl shadow-md border border-gray-100 h-full flex flex-col relative">`;
+            
+            // Header
+            html += `<h4 class="font-bold text-slate-800 mb-3 flex items-center gap-2 border-b border-gray-50 pb-2 text-xs uppercase tracking-wide"><i class="fas fa-history text-blue-600"></i> Revisões Hoje <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full">${dueReviews.length}</span></h4>`;
+            
+            // Due List
+            html += `<div class="flex-1 overflow-y-auto space-y-2 mb-2 custom-scrollbar">`;
+            if (dueReviews.length === 0) {
+                html += `<div class="text-center py-8 text-gray-400 text-xs italic flex flex-col items-center"><i class="fas fa-check-circle text-2xl mb-2 text-green-100"></i>Tudo em dia!</div>`;
+            } else {
+                dueReviews.forEach(t => { 
+                    html += `<div class="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex justify-between items-center group hover:border-blue-200 transition"><span class="text-xs font-semibold text-slate-700 truncate w-32" title="${t.subject}">${t.subject}</span><button onclick="completeReview('${t.id}')" class="text-[10px] bg-white text-blue-600 border border-gray-200 px-3 py-1 rounded-lg font-bold hover:bg-blue-600 hover:text-white hover:border-blue-600 transition shadow-sm">OK</button></div>`; 
+                });
+            }
+            html += `</div>`;
+
+            // Upcoming List
+            if (nextUp.length > 0) {
+                html += `<div class="border-t border-gray-100 pt-2 mt-auto"><h5 class="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-2">Próximas</h5><div class="space-y-1.5">`;
+                nextUp.forEach(t => {
+                    const d = t.reviewDate.split('-');
+                    html += `<div class="flex justify-between items-center text-[10px] text-gray-500"><span class="truncate w-36">${t.subject}</span><span class="font-mono text-slate-400 text-[9px]">${d[2]}/${d[1]}</span></div>`;
+                });
+                html += `</div></div>`;
+            } else if (dueReviews.length === 0) {
+                 html += `<div class="mt-auto text-[10px] text-gray-300 text-center pb-2">Sem revisões futuras agendadas.</div>`;
+            }
+
+            html += `</div>`; 
+            return html;
+        }
+
+        window.renderDailyStatsWidget = function() { return '<!-- replaced by new version below -->'; }
+
+        window.renderPrevalenceTable = function() {
+            const container = document.getElementById('prevalence-container'); if(!container) return;
+
+            // Map categories to the 5 grandes áreas
+            const areaMap = {
+                "Clínica Médica": ["Clínica", "Cardiologia", "Endocrino", "Gastro", "Hemato", "Infecto", "Nefrologia", "Neuro", "Pneumo", "Psiquiatria", "Reumato", "Dermato", "Hepato", "Oftalmo", "Otorrino"],
+                "Cirurgia":       ["Cirurgia", "Urologia", "Ortopedia", "Trauma", "Cirurgia Pediátrica", "Cirurgia Plástica", "Cirurgia Vascular", "Cirurgia Torácica"],
+                "Pediatria":      ["Pediatria"],
+                "Ginecologia e Obstetrícia": ["Ginecologia", "Obstetrícia", "Ginecologia e Obstetrícia"],
+                "Preventiva":     ["Preventiva", "Simulado"]
+            };
+            const areaIcons = { "Clínica Médica":"🩺","Cirurgia":"🔪","Pediatria":"👶","Ginecologia e Obstetrícia":"🤰","Preventiva":"🛡️" };
+
+            // Collect all crucial tasks, organized by grande área
+            const crucialByArea = {};
+            Object.keys(areaMap).forEach(a => crucialByArea[a] = []);
+
+            state.weeks.forEach(w => {
+                w.tasks.forEach(t => {
+                    const p = state.progress[t.id] || {};
+                    if (!p.crucial) return;
+                    let matched = false;
+                    for (const [area, cats] of Object.entries(areaMap)) {
+                        if (cats.includes(t.category)) { crucialByArea[area].push({ task: t, week: w.week }); matched = true; break; }
+                    }
+                    if (!matched) crucialByArea["Preventiva"].push({ task: t, week: w.week });
+                });
+            });
+
+            const totalCrucial = Object.values(crucialByArea).reduce((s, arr) => s + arr.length, 0);
+
+            if (totalCrucial === 0) {
+                container.innerHTML = `<div class="flex flex-col items-center justify-center py-16 text-center"><div class="text-5xl mb-4">🔥</div><p class="font-bold text-slate-600 text-sm mb-1">Nenhum tema marcado como prevalente ainda.</p><p class="text-xs text-gray-400 max-w-sm">Clique no botão 🔥 de qualquer tarefa no cronograma para ela aparecer aqui, organizada por área.</p></div>`;
+                return;
+            }
+
+            let html = '';
+            Object.entries(crucialByArea).forEach(([area, items]) => {
+                if (items.length === 0) return;
+                const icon = areaIcons[area] || '📋';
+                html += `<div class="mb-7"><h4 class="text-xs font-bold text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2"><span class="text-base leading-none">${icon}</span>${area}<span class="ml-auto text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold">${items.length}</span></h4><div class="grid grid-cols-2 lg:grid-cols-3 gap-3">`;
+                items.forEach(({ task, week }) => {
+                    const p = state.progress[task.id] || {};
+                    const isDone = p.doneStatus;
+                    const cardStyle = isDone ? 'background:#f0fdf4;border-left:3px solid #22c55e;' : 'background:#fff7ed;border-left:3px solid #f97316;';
+                    html += `<div onclick="toggleRaioXTask('${task.id}')" class="hy-card ${isDone ? 'completed' : ''}" style="${cardStyle}cursor:pointer;" title="Clique para marcar como concluído"><div class="flex items-center gap-2 truncate overflow-hidden"><div class="hy-circle" style="${isDone ? 'background:#16a34a;border-color:#16a34a;' : 'border-color:#f97316;'}"></div><span class="text-sm leading-none">🔥</span><span class="truncate text-xs font-semibold" title="${task.subject}">${task.subject}</span></div><span class="week-tag ml-1 shrink-0" style="${isDone ? 'background:#dcfce7;color:#166534;' : ''}">S${week}</span></div>`;
+                });
+                html += `</div></div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Clicar no Temas mais prevalentes marca a tarefa como concluída (doneStatus) — sincronizado com o cronograma
+        window.toggleRaioXTask = function(taskId) {
+            ensureProgress(taskId);
+            const newStatus = !state.progress[taskId].doneStatus;
+            state.progress[taskId].doneStatus = newStatus;
+            if (newStatus) {
+                state.progress[taskId].completedDate = getTodayStr();
+                openReviewModal(taskId);
+            } else {
+                delete state.progress[taskId].completedDate;
+            }
+            save();
+            renderPrevalenceTable();
+            updateGlobalProgress();
+        }
+
+        window.renderNav = function() { const nav = document.getElementById('week-nav'); if(!nav) return; nav.innerHTML = ''; state.weeks.forEach(item => { let total = item.tasks.length; let done = 0; item.tasks.forEach(t => { if(state.progress[t.id] && state.progress[t.id].doneStatus) done++; }); let statusClass = done === total && total > 0 ? "bg-emerald-50 text-emerald-900 border-l-4 border-emerald-500" : done > 0 ? "bg-amber-50 text-amber-900 border-l-4 border-amber-400" : "bg-white text-slate-600 border-l-4 border-transparent hover:bg-slate-50"; const active = (activeView === 'week' && activeWeek === item.week) ? 'ring-2 ring-slate-900 shadow-md font-bold z-10' : ''; const weekDateRange = getWeekDateRange(item.week); const div = document.createElement('div'); div.className = `px-4 py-3 rounded-lg text-sm mb-2 week-btn cursor-pointer transition-all border border-gray-100 ${statusClass} ${active}`; div.innerHTML = `<div class="flex justify-between items-center"><div><span class="block text-xs font-bold uppercase tracking-wide opacity-80">Semana ${item.week}</span><span class="text-[10px] text-gray-500 font-mono mt-0.5 block">${weekDateRange}</span></div><span class="text-xs font-bold bg-white/50 px-2 py-1 rounded">${Math.round(total ? (done/total)*100 : 0)}%</span></div>`; div.onclick = () => { activeWeek = item.week; switchView('week'); }; div.ondragover = (e) => handleDragOverWeek(e); div.ondragleave = handleDragLeaveWeek; div.ondrop = (e) => handleDropWeek(e, item.week); nav.appendChild(div); }); }
+        
+        window.renderDashboard = function() { 
+            const content = document.getElementById('content-area'); 
+            
+            // TITULO 1: Controle e Calendário
+            let html = `<h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3"><span class="w-2 h-8 bg-blue-600 rounded-full"></span>Controle e Calendário</h2>`;
+            html += `<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-20 min-h-[300px]"><div class="lg:col-span-1" id="dashboard-calendar-container"></div><div class="lg:col-span-1">${renderDailyStatsWidget()}</div><div class="lg:col-span-1">${renderReviews()}</div></div>`;
+            
+            const mapping = { "Cirurgia": ["Cirurgia", "Urologia", "Ortopedia"], "Clínica": ["Clínica", "Cardiologia", "Endocrino", "Gastro", "Hemato", "Infecto", "Nefrologia", "Neuro", "Pneumo", "Psiquiatria", "Reumato", "Dermato", "Hepato", "Oftalmo", "Otorrino"], "Ginecologia e Obstetrícia": ["Ginecologia", "Obstetrícia", "Ginecologia e Obstetrícia"], "Pediatria": ["Pediatria"], "Preventiva": ["Preventiva"] };
+            
+            // TITULO 2: Desempenho por Grande Área
+            html += `<h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3"><span class="w-2 h-8 bg-black rounded-full"></span>Desempenho por Grande Área</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">`;
+            Object.entries(mapping).forEach(([area, subCats]) => {
+                const items = []; let totalDone = 0; let totalCorrect = 0;
+                state.weeks.forEach(week => { week.tasks.forEach((task) => { const cat = task.category; let match = subCats.includes(cat); if (!match && area === "Clínica" && !["Cirurgia","Pediatria","Preventiva","Ginecologia","Obstetrícia"].includes(cat)) match = true; if (match) { const p = state.progress[task.id] || {}; items.push({ ...task, week: week.week, done: parseInt(p.done)||0, correct: parseInt(p.correct)||0, isDone: p.doneStatus, crucial: p.crucial }); totalDone += parseInt(p.done)||0; totalCorrect += parseInt(p.correct)||0; } }); });
+                const acc = calculateAccuracy(totalDone, totalCorrect); const concl = items.length > 0 ? Math.round((items.filter(i => i.isDone).length / items.length) * 100) : 0;
+                let barColor = "bg-gray-300"; if(concl > 20) barColor = "bg-red-500"; if(concl > 50) barColor = "bg-yellow-500"; if(concl > 80) barColor = "bg-green-500";
+                let listHtml = `<div class="p-4 flex-1 overflow-y-auto sidebar bg-gray-50/50 max-h-60"><div class="flex flex-col gap-2">`;
+                items.forEach(item => { const itemAcc = calculateAccuracy(item.done, item.correct); const colorClass = item.done > 0 ? getAccuracyColorClass(itemAcc) : 'text-slate-300'; listHtml += `<div class="dash-item ${item.isDone ? 'done' : ''} ${item.crucial ? 'crucial' : ''}"><div class="flex flex-col min-w-0"><div class="font-bold text-slate-700 text-[10px] subject-text truncate max-w-[150px] leading-tight">${item.subject}</div><div class="text-[9px] text-gray-400 font-bold tracking-wider mt-1 flex items-center gap-1">SEM. ${item.week} ${item.crucial ? '🔥' : ''}</div></div><div class="text-[11px] font-black ${colorClass} ml-2 whitespace-nowrap bg-white px-2 py-1 rounded border border-gray-100">${item.done > 0 ? itemAcc + '%' : '-'}</div></div>`; }); listHtml += `</div></div>`;
+                html += `<div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden card-shadow flex flex-col h-[420px]"><div class="p-6 border-b border-gray-100 bg-white relative"><div class="flex justify-between items-center mb-3"><h3 class="font-black text-slate-800 text-sm uppercase tracking-wider">${area}</h3><div class="text-right"><span class="text-[9px] font-bold text-gray-400 block uppercase tracking-widest">Acerto</span><span class="text-2xl font-black text-slate-800">${acc}%</span></div></div><div class="flex items-center gap-3"><div class="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden"><div class="${barColor} h-1.5 rounded-full transition-all duration-1000 shadow-sm" style="width: ${concl}%"></div></div><span class="text-[10px] font-bold text-gray-400 w-8 text-right">${concl}%</span></div></div>${listHtml}</div>`;
+            });
+            html += `</div>`;
+            
+            // TITULO 3: Evolução
+            html += `<h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3"><span class="w-2 h-8 bg-emerald-500 rounded-full"></span>Evolução</h2>`;
+            html += `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-20">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+                    <h3 class="font-black text-sm text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">📈 Questões por Dia (últimos 14 dias)</h3>
+                    <canvas id="chart-questions" height="120"></canvas>
+                </div>
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+                    <h3 class="font-black text-sm text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">✅ Matérias Concluídas por Semana</h3>
+                    <canvas id="chart-subjects" height="120"></canvas>
+                </div>
+            </div>`;
+
+            // TITULO 4: Temas mais prevalentes
+            html += `<div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 mb-8"><div class="flex items-center gap-3 mb-6 flex-wrap"><div class="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-xl flex-shrink-0">🎯</div><div><h2 class="text-2xl font-black text-slate-800">Temas mais prevalentes</h2><p class="text-xs text-gray-400 mt-0.5">Marque 🔥 em qualquer tarefa para ela aparecer aqui, organizada por área</p></div></div><div id="prevalence-container"></div></div>`;
+            content.innerHTML = html; renderCalendar(currentCalendarDate); renderPrevalenceTable(); updateGlobalProgress(); renderEvolutionCharts();
+        }
+
+        window.toggleSearchFilter = function(area) {
+            searchFilterArea = area;
+            renderSearch();
+        }
+
+        window.renderSearch = function() {
+            const content = document.getElementById('content-area'); const allTasks = []; state.weeks.forEach((w, wIdx) => { w.tasks.forEach((t, tIdx) => { allTasks.push({...t, week: w.week, weekIdx: wIdx, taskIdx: tIdx}); }); });
+            
+            const filterButtons = ['Todas', ...mainCategories].map(area => 
+                `<button onclick="toggleSearchFilter('${area}')" class="filter-chip ${searchFilterArea === area ? 'active' : ''}">${area}</button>`
+            ).join('');
+
+            const html = `<div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 min-h-[600px]"><div class="mb-8"><h2 class="text-3xl font-black text-slate-800 mb-4 tracking-tight">Buscar Tarefas</h2><input type="text" id="global-search-input" placeholder="Digite o tema, categoria ou palavra-chave..." class="w-full text-lg p-5 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none bg-gray-50 transition shadow-sm mb-4"><div class="flex flex-wrap gap-2">${filterButtons}</div></div><div id="search-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div></div>`;
+            content.innerHTML = html; const searchInput = document.getElementById('global-search-input'); const resultsContainer = document.getElementById('search-results');
+            
+            function filterAndRender(query) {
+                const lowerQ = query.toLowerCase(); 
+                const filtered = allTasks.filter(t => {
+                    const textMatch = t.subject.toLowerCase().includes(lowerQ) || t.category.toLowerCase().includes(lowerQ);
+                    let areaMatch = true;
+                    if (searchFilterArea !== 'Todas') {
+                        let tArea = areaMapping[t.category] || "Outros";
+                        areaMatch = tArea === searchFilterArea;
+                    }
+                    return textMatch && areaMatch;
+                });
+                if(filtered.length === 0) {
+                    resultsContainer.innerHTML = `<div class="col-span-full text-center py-20 text-gray-400 italic">Nenhuma tarefa encontrada para este filtro.</div>`;
+                } else {
+                    resultsContainer.innerHTML = filtered.map(item => {
+                        const isCrucial = (state.progress[item.id] || {}).crucial;
+                        return `<div class="p-4 border border-gray-100 rounded-xl bg-white hover:shadow-lg transition-all hover:border-blue-200 group draggable-item flex justify-between items-center" draggable="true" ondragstart="handleDragStart(event, ${item.week}, ${item.taskIdx})">
+                            <div class="flex-1 min-w-0 cursor-pointer" onclick="activeWeek=${item.week}; switchView('week');" title="Ir para Semana ${item.week}">
+                                <div class="font-bold text-sm text-slate-800 leading-tight">${item.subject}</div>
+                                <div class="text-[10px] font-bold uppercase text-gray-400 mt-1.5 tracking-wide">${item.category} • <span class="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded hover:bg-blue-100 hover:text-blue-700 transition">Semana ${item.week} ↗</span></div>
+                            </div>
+                            <div class="flex items-center gap-1 ml-2">
+                                <button onclick="toggleCrucial('${item.id}')" class="fire-btn ${isCrucial ? 'active' : ''} w-9 h-9 rounded-full hover:bg-red-50 flex items-center justify-center transition text-xl" title="Marcar como Crucial">🔥</button>
+                                <span class="text-gray-300 cursor-move hover:text-gray-500 p-2"><i class="fas fa-grip-vertical"></i></span>
+                                <button onclick="requestDeleteTask(${item.week}, ${item.taskIdx})" class="text-gray-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition text-lg" title="Excluir">🗑️</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                }
+            }
+            searchInput.addEventListener('input', (e) => filterAndRender(e.target.value)); filterAndRender('');
+        }
+
+        window.renderWeek = function() {
+            const weekData = state.weeks.find(d => d.week === activeWeek); const content = document.getElementById('content-area'); const days = getWeekDates(activeWeek);
+            let toolbarHtml = `<div class="flex items-center gap-2 mb-3 p-2 bg-white rounded-xl shadow-sm border border-gray-200 sticky left-0"><button onclick="formatText('bold')" class="editor-btn font-bold" onmousedown="event.preventDefault()">B</button><button onclick="formatText('italic')" class="editor-btn italic" onmousedown="event.preventDefault()">I</button><div class="h-4 w-px bg-gray-200 mx-2"></div><label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded text-xs font-bold text-gray-600 transition"><i class="fas fa-fill-drip"></i> Cor <input type="color" id="colorPickerTool" class="w-0 h-0 opacity-0 absolute"></label><button onclick="triggerApplyColor()" class="bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg ml-2 shadow-sm transition" onmousedown="event.preventDefault()">Aplicar</button></div>`;
+            let agendaRows = weekData.timeSlots.map((slot, slotIdx) => `<tr class="group"><td class="p-0 w-24 align-middle time-col relative border-r border-gray-100"><div class="w-full text-center font-mono text-[10px] font-bold text-slate-500 time-cell p-3 outline-none bg-gray-50/50" contenteditable="true" onblur="updateTimeSlot(${activeWeek}, ${slotIdx}, this.innerText)">${slot}</div><div class="row-controls bg-white/95 shadow-md border-l border-gray-100"><button onclick="addAgendaRowAt(${activeWeek}, ${slotIdx})" class="w-5 h-5 flex items-center justify-center text-[10px] text-blue-600 hover:bg-blue-50 mb-1 rounded transition" title="Add Row"><i class="fas fa-plus"></i></button><button onclick="requestRemoveAgendaRow(${activeWeek}, ${slotIdx})" class="w-5 h-5 flex items-center justify-center text-[10px] text-red-600 hover:bg-red-50 rounded transition" title="Delete Row"><i class="fas fa-minus"></i></button></div></td>${days.map((d, dIdx) => { const cellData = weekData.agenda[`${d.key}_s${slotIdx}`] || { text: "", color: "#ffffff" }; const text = typeof cellData === 'string' ? cellData : cellData.text; const color = typeof cellData === 'string' ? "#ffffff" : cellData.color; return `<td class="p-0 min-w-[100px] h-16 align-top border-r border-b border-gray-100"><div id="agenda_${activeWeek}_${d.key}_${slotIdx}" class="agenda-cell text-xs font-medium text-slate-700 hover:bg-gray-50" style="background-color: ${color};" contenteditable="true" draggable="true" ondragstart="handleDragStartAgenda(event, ${activeWeek}, '${d.key}', ${slotIdx}, this.innerText, '${color}')" onblur="updateAgendaGlobal(${activeWeek}, '${d.key}', ${slotIdx}, this.innerText, this.style.backgroundColor)" ondragover="handleDragOverAgenda(event)" ondragleave="handleDragLeaveAgenda(event)" ondrop="handleDropAgenda(event, ${activeWeek}, '${d.key}', ${slotIdx})">${text}</div></td>`; }).join('')}</tr>`).join('');
+            let agendaHtml = `<div class="mb-10"><div class="flex items-center gap-4 mb-6"><button onclick="switchView('dashboard')" class="text-slate-400 hover:text-slate-900 text-sm font-bold flex items-center gap-2 transition-colors bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm hover:shadow-md"><i class="fas fa-arrow-left"></i> Voltar</button><div><h2 class="text-3xl font-black text-slate-900 tracking-tight">Semana ${activeWeek}</h2><span class="text-xs font-mono font-bold text-blue-600 uppercase tracking-wide">${getWeekDateRange(activeWeek)}</span></div></div>${toolbarHtml}<div class="overflow-x-auto rounded-xl shadow-lg border border-gray-200 bg-white"><table class="agenda-table min-w-[800px]"><thead><tr><th class="p-4 w-24 bg-slate-900 text-white border-none">Horário</th>${days.map(d => `<th class="p-3 bg-slate-900 text-white border-l border-slate-700"><div class="font-bold text-sm">${d.name}</div><div class="text-[9px] opacity-60 font-mono mt-1">${d.date}</div></th>`).join('')}</tr></thead><tbody>${agendaRows}</tbody></table></div></div>`;
+            
+            let tasksHtml = `<div class="grid gap-4">`;
+            weekData.tasks.forEach((task, idx) => {
+                const taskId = task.id; const p = state.progress[taskId] || {}; const isChecked = p.doneStatus; const doneVal = p.done || ''; const correctVal = p.correct || ''; const acc = calculateAccuracy(parseInt(doneVal)||0, parseInt(correctVal)||0); const checkedClass = isChecked ? 'bg-slate-50 border-gray-200 opacity-60 grayscale-[0.5]' : 'bg-white border-gray-200 hover:border-blue-300'; const isCrucial = p.crucial; const accColor = doneVal > 0 ? getAccuracyColorClass(acc) : 'text-gray-300';
+                tasksHtml += `<div class="p-5 border rounded-2xl shadow-sm transition-all ${checkedClass} card-shadow flex flex-col md:flex-row gap-5 task-card group relative group" draggable="true" ondragstart="handleDragStart(event, ${activeWeek}, ${idx})" ondragover="handleDragOverTask(event)" ondragleave="handleDragLeaveTask(event)" ondrop="handleDropTask(event, ${idx})"><div class="flex items-start gap-4 flex-1 min-w-0"><div class="mt-1.5 cursor-move text-gray-300 group-hover:text-blue-400 drag-handle transition"><i class="fas fa-grip-vertical text-lg"></i></div><div class="relative"><input type="checkbox" class="peer appearance-none w-6 h-6 border-2 border-gray-300 rounded-lg checked:bg-black checked:border-black transition cursor-pointer" ${isChecked ? 'checked' : ''} onchange="toggleTask('${taskId}')"><i class="fas fa-check text-white absolute top-1 left-1 pointer-events-none opacity-0 peer-checked:opacity-100 text-xs transition"></i></div><div class="flex-1 min-w-0"><div class="font-bold text-slate-800 text-lg leading-snug mb-1 outline-none border-b-2 border-transparent hover:border-gray-100 focus:border-blue-500 transition-colors py-1" contenteditable="true" onblur="updateTaskName(${activeWeek}, ${idx}, this.innerText)">${task.subject}</div><div class="flex justify-between items-center mt-2"><div class="flex items-center gap-2"><button onclick="cycleTaskCategory(${activeWeek}, ${idx})" class="text-[10px] font-bold bg-slate-100 px-2.5 py-1 rounded-md text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer uppercase tracking-wide border border-transparent hover:border-slate-300" title="Alterar Área">${task.category}</button><button onclick="toggleCrucial('${taskId}')" class="fire-btn ${isCrucial ? 'active' : ''} w-9 h-9 rounded-full hover:bg-red-50 flex items-center justify-center transition text-xl" title="Marcar como Crucial">🔥</button></div><button onclick="requestDeleteTask(${activeWeek}, ${idx})" class="text-gray-300 hover:text-red-500 px-2 py-1 rounded transition-colors text-xl" title="Excluir">🗑️</button></div><div class="flex gap-2 mt-4 flex-wrap"><button onclick="toggleSubTask('${taskId}_a')" class="px-3 py-1.5 rounded-lg border ${p.sub_a ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-gray-200'} text-[10px] font-bold uppercase transition hover:shadow-md flex items-center gap-1.5"><i class="fas fa-play"></i> Aula</button><button onclick="toggleSubTask('${taskId}_q')" class="px-3 py-1.5 rounded-lg border ${p.sub_q ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-gray-200'} text-[10px] font-bold uppercase transition hover:shadow-md flex items-center gap-1.5"><i class="fas fa-pen"></i> Questões</button><button onclick="toggleSubTask('${taskId}_k')" class="px-3 py-1.5 rounded-lg border ${p.sub_k ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-gray-200'} text-[10px] font-bold uppercase transition hover:shadow-md flex items-center gap-1.5"><i class="fas fa-bolt"></i> Anki</button></div></div></div><div class="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 self-start shadow-inner"><div class="text-center"><span class="text-[9px] font-bold text-gray-400 uppercase block tracking-wider mb-1">Feitas</span><input type="number" value="${doneVal}" onchange="updateTaskQuestions('${taskId}', this.value)" class="w-12 bg-transparent text-center font-bold text-slate-700 outline-none border-b border-gray-300 focus:border-black py-1" placeholder="-"></div><div class="text-center"><span class="text-[9px] font-bold text-gray-400 uppercase block tracking-wider mb-1">Acertos</span><input type="number" value="${correctVal}" onchange="updateScore('${taskId}', 'correct', this.value)" class="w-12 bg-transparent text-center font-bold text-slate-700 outline-none border-b border-gray-300 focus:border-black py-1" placeholder="-"></div><div class="pl-3 border-l border-gray-200 text-center min-w-[3rem]"><span class="text-[9px] font-bold text-gray-400 uppercase block tracking-wider mb-1">%</span><span class="text-lg font-black ${accColor}">${acc}%</span></div></div></div>`;
+            });
+            tasksHtml += `<button onclick="addTask(${activeWeek})" class="w-full py-6 border-2 border-dashed border-gray-300 rounded-2xl text-gray-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 transition flex items-center justify-center gap-3 font-bold text-sm mt-6 group"><span class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-blue-100 transition"><i class="fas fa-plus"></i></span> Adicionar Novo Tema</button></div>`;
+            content.innerHTML = agendaHtml + tasksHtml;
+        }
+
+        window.updateGlobalProgress = function() { let totalTasks = 0; let completed = 0; state.weeks.forEach(w => { totalTasks += w.tasks.length; w.tasks.forEach(t => { if (state.progress[t.id] && state.progress[t.id].doneStatus) completed++; }); }); const percent = totalTasks > 0 ? (completed / totalTasks) * 100 : 0; const bar = document.getElementById('global-progress'); const text = document.getElementById('global-percent-text'); if(bar) bar.style.width = `${percent}%`; if(text) text.innerText = `${Math.round(percent)}%`; }
+        
+        window.updateUI = function() { renderNav(); if(activeView === 'dashboard') renderDashboard(); else if (activeView === 'search') renderSearch(); else if (activeView === 'homepage') renderHomepage(); else renderWeek(); }
+        window.switchView = function(viewName) {
+            activeView = viewName;
+            document.getElementById('nav-dashboard').classList.remove('bg-black', 'text-white', 'border-transparent');
+            document.getElementById('nav-dashboard').classList.add('bg-white', 'text-gray-600', 'border-gray-200');
+            document.getElementById('nav-search').classList.remove('bg-black', 'text-white', 'border-transparent');
+            document.getElementById('nav-search').classList.add('bg-white', 'text-gray-600', 'border-gray-200');
+            document.getElementById('nav-homepage').classList.remove('bg-black', 'text-white', 'border-transparent');
+            document.getElementById('nav-homepage').classList.add('bg-white', 'text-gray-600', 'border-gray-200');
+
+            if(viewName === 'dashboard') {
+                activeWeek = 0;
+                document.getElementById('nav-dashboard').classList.remove('bg-white', 'text-gray-600', 'border-gray-200');
+                document.getElementById('nav-dashboard').classList.add('bg-black', 'text-white', 'border-transparent');
+            } else if (viewName === 'search') {
+                activeWeek = 0;
+                document.getElementById('nav-search').classList.remove('bg-white', 'text-gray-600', 'border-gray-200');
+                document.getElementById('nav-search').classList.add('bg-black', 'text-white', 'border-transparent');
+            } else if (viewName === 'homepage') {
+                activeWeek = 0;
+                document.getElementById('nav-homepage').classList.remove('bg-white', 'text-gray-600', 'border-gray-200');
+                document.getElementById('nav-homepage').classList.add('bg-black', 'text-white', 'border-transparent');
+            }
+            updateUI();
+        }
+        window.toggleSidebar = function() { document.getElementById('main-sidebar').classList.toggle('sidebar-hidden'); }
+        window.openBackupModal = function() { document.getElementById('export-data').value = btoa(unescape(encodeURIComponent(JSON.stringify(state)))); document.getElementById('backup-modal').classList.remove('hidden'); document.getElementById('backup-modal').classList.add('flex'); }
+        window.closeBackupModal = function() { document.getElementById('backup-modal').classList.add('hidden'); document.getElementById('backup-modal').classList.remove('flex'); }
+        window.copyToClipboard = function() { document.getElementById("export-data").select(); navigator.clipboard.writeText(document.getElementById("export-data").value); document.getElementById('copy-msg').classList.remove('hidden'); setTimeout(() => document.getElementById('copy-msg').classList.add('hidden'), 2000); }
+        window.importData = function() { try { state = JSON.parse(decodeURIComponent(escape(atob(document.getElementById('import-data').value.trim())))); save(); closeBackupModal(); updateUI(); alert('Sucesso!'); } catch(e) { alert('Erro!'); } }
+        
+        initState();
+
+        // ===== NEW FEATURES JS =====
+
+        // SETTINGS SIDEBAR
+        window.openSettingsSidebar = function() {
+            document.getElementById('settings-sidebar').classList.add('open');
+            document.getElementById('settings-overlay').classList.add('open');
+        }
+        window.closeSettingsSidebar = function() {
+            document.getElementById('settings-sidebar').classList.remove('open');
+            document.getElementById('settings-overlay').classList.remove('open');
+        }
+
+        // DARK MODE
+        window.toggleDarkMode = function(on) {
+            document.body.classList.toggle('dark-mode', on);
+            localStorage.setItem('darkMode', on ? '1' : '0');
+        }
+        if (localStorage.getItem('darkMode') === '1') {
+            document.body.classList.add('dark-mode');
+            const tog = document.getElementById('dark-mode-toggle');
+            if(tog) tog.checked = true;
+        }
+
+        // REMINDERS
+        window._reminders = JSON.parse(localStorage.getItem('reminders_v1') || '[]');
+        window.saveReminders = function() { localStorage.setItem('reminders_v1', JSON.stringify(window._reminders)); }
+        window.renderReminderList = function() {
+            const list = document.getElementById('reminder-list');
+            const badge = document.getElementById('reminder-badge');
+            if (!list) return;
+            const today = new Date().toISOString().split('T')[0];
+            const todayItems = window._reminders.filter(r => r.date === today || r.type === 'day');
+            if (badge) { if(window._reminders.length > 0) { badge.textContent = window._reminders.length; badge.classList.remove('hidden'); } else { badge.classList.add('hidden'); } }
+            if (window._reminders.length === 0) { list.innerHTML = `<div class="text-xs text-gray-400 italic text-center py-4">Nenhum lembrete ainda.</div>`; return; }
+            list.innerHTML = window._reminders.map((r, i) => `<div class="reminder-item"><div><div class="font-semibold">${r.text}</div><div class="rm-date">${r.type === 'day' ? 'Hoje' : r.type === 'week' ? 'Esta semana' : r.date}</div></div><button onclick="deleteReminder(${i})" class="text-gray-300 hover:text-red-500 ml-2 transition"><i class="fas fa-times text-xs"></i></button></div>`).join('');
+        }
+        window.addReminder = function() {
+            const text = document.getElementById('reminder-text').value.trim();
+            const date = document.getElementById('reminder-date').value;
+            const type = document.getElementById('reminder-type').value;
+            if (!text) return;
+            window._reminders.push({ text, date: date || new Date().toISOString().split('T')[0], type });
+            saveReminders(); document.getElementById('reminder-text').value = ''; renderReminderList();
+        }
+        window.deleteReminder = function(idx) { window._reminders.splice(idx, 1); saveReminders(); renderReminderList(); }
+        window.toggleReminderPanel = function() {
+            const panel = document.getElementById('reminder-panel');
+            panel.classList.toggle('open'); renderReminderList();
+        }
+        renderReminderList();
+
+        // REMANEJAMENTO INTELIGENTE
+        window._remanejoSuggestion = null;
+        window.openRemanejoModal = function() {
+            const modal = document.getElementById('remanejo-modal');
+            const content = document.getElementById('remanejo-content');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            
+            // Build suggestion
+            const today = new Date();
+            // Find current week index
+            let currentWeekIdx = 1;
+            state.weeks.forEach(w => {
+                const start = getStartDate(); start.setDate(getStartDate().getDate() + (w.week - 1) * 7);
+                if (today >= start) currentWeekIdx = w.week;
+            });
+            
+            // Find delayed tasks (tasks in past weeks not done)
+            const delayed = [];
+            state.weeks.forEach(w => {
+                if (w.week < currentWeekIdx) {
+                    w.tasks.forEach((t, tIdx) => {
+                        const p = state.progress[t.id] || {};
+                        if (!p.doneStatus) delayed.push({ ...t, fromWeek: w.week, taskIdx: tIdx });
+                    });
+                }
+            });
+
+            // Find future weeks with least load
+            const futureWeeks = state.weeks.filter(w => w.week >= currentWeekIdx).sort((a, b) => a.tasks.length - b.tasks.length);
+
+            if (delayed.length === 0) {
+                content.innerHTML = `<div class="text-center py-12 text-gray-400"><i class="fas fa-check-circle text-4xl text-green-300 mb-4 block"></i><p class="font-bold">Nenhuma tarefa atrasada!</p><p class="text-xs mt-2">Seu cronograma está em dia.</p></div>`;
+                document.getElementById('remanejo-accept-btn').disabled = true;
+                document.getElementById('remanejo-accept-btn').classList.add('opacity-50');
+                window._remanejoSuggestion = null;
+                return;
+            }
+
+            document.getElementById('remanejo-accept-btn').disabled = false;
+            document.getElementById('remanejo-accept-btn').classList.remove('opacity-50');
+
+            // Build distribution suggestion
+            const suggestion = [];
+            let weekPtr = 0;
+            delayed.forEach((task, i) => {
+                const targetWeek = futureWeeks[weekPtr % futureWeeks.length];
+                suggestion.push({ task, toWeek: targetWeek.week });
+                weekPtr++;
+            });
+            window._remanejoSuggestion = suggestion;
+
+            let html = `<div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-bold"><i class="fas fa-exclamation-triangle mr-2"></i>${delayed.length} tarefa(s) atrasada(s) encontrada(s)</div>`;
+            html += `<div class="space-y-2">`;
+            suggestion.forEach(s => {
+                html += `<div class="remanejo-card flex justify-between items-center"><div><div class="font-bold text-slate-800 text-xs">${s.task.subject}</div><div class="text-[10px] text-gray-400 mt-0.5">${s.task.category} • Semana ${s.task.fromWeek} → <span class="text-purple-600 font-bold">Semana ${s.toWeek}</span></div></div><i class="fas fa-arrow-right text-purple-400"></i></div>`;
+            });
+            html += `</div>`;
+            content.innerHTML = html;
+        }
+        window.closeRemanejoModal = function() {
+            document.getElementById('remanejo-modal').classList.add('hidden');
+            document.getElementById('remanejo-modal').classList.remove('flex');
+        }
+        window.applyRemanejo = function() {
+            if (!window._remanejoSuggestion) return;
+            window._remanejoSuggestion.forEach(s => {
+                const fromWeek = state.weeks.find(w => w.week === s.task.fromWeek);
+                const toWeek = state.weeks.find(w => w.week === s.toWeek);
+                if (!fromWeek || !toWeek) return;
+                const taskIdx = fromWeek.tasks.findIndex(t => t.id === s.task.id);
+                if (taskIdx === -1) return;
+                const [movedTask] = fromWeek.tasks.splice(taskIdx, 1);
+                toWeek.tasks.push(movedTask);
+            });
+            save(); updateUI(); closeRemanejoModal();
+            window._remanejoSuggestion = null;
+        }
+
+        // EVOLUTION CHARTS
+        window.renderEvolutionCharts = function() {
+            // Questions chart - last 14 days
+            const qCanvas = document.getElementById('chart-questions');
+            if (qCanvas) {
+                const labels = []; const data = [];
+                for (let i = 13; i >= 0; i--) {
+                    const d = new Date(); d.setDate(d.getDate() - i);
+                    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    labels.push(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`);
+                    data.push(state.dailyStats[ds] || 0);
+                }
+                if (window._chartQ) window._chartQ.destroy();
+                window._chartQ = new Chart(qCanvas, { type: 'bar', data: { labels, datasets: [{ label: 'Questões', data, backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 6, borderSkipped: false }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 9 } } } }, responsive: true, maintainAspectRatio: true } });
+            }
+
+            // Subjects completed per week chart
+            const sCanvas = document.getElementById('chart-subjects');
+            if (sCanvas) {
+                const labels = []; const data = [];
+                state.weeks.forEach(w => {
+                    labels.push(`S${w.week}`);
+                    const done = w.tasks.filter(t => (state.progress[t.id] || {}).doneStatus).length;
+                    data.push(done);
+                });
+                if (window._chartS) window._chartS.destroy();
+                window._chartS = new Chart(sCanvas, { type: 'line', data: { labels, datasets: [{ label: 'Concluídas', data, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#10b981' }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 9 }, maxTicksLimit: 15 } } }, responsive: true, maintainAspectRatio: true } });
+            }
+        }
+
+        // HOMEPAGE VIEW
+        window.renderHomepage = function() {
+            const content = document.getElementById('content-area');
+            const today = new Date();
+            const todayStr = getTodayStr();
+            const fmt = d => d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+            
+            // Determine current week
+            let currentWeek = null;
+            state.weeks.forEach(w => {
+                const start = getStartDate(); start.setDate(getStartDate().getDate() + (w.week - 1) * 7);
+                const end = new Date(start); end.setDate(start.getDate() + 6);
+                if (today >= start && today <= end) currentWeek = w;
+            });
+
+            // Today's questions
+            const todayQ = state.dailyStats[todayStr] || 0;
+
+            // Tasks to do today (current week, not done, crucial first)
+            let todayTasks = [];
+            if (currentWeek) {
+                todayTasks = currentWeek.tasks
+                    .filter(t => !(state.progress[t.id] || {}).doneStatus)
+                    .sort((a, b) => {
+                        const pa = (state.progress[a.id] || {}).crucial ? 1 : 0;
+                        const pb = (state.progress[b.id] || {}).crucial ? 1 : 0;
+                        return pb - pa;
+                    });
+            }
+
+            // Upcoming reviews
+            const dueReviews = [];
+            state.weeks.forEach(w => { w.tasks.forEach(t => { if (state.progress[t.id] && state.progress[t.id].nextReview && state.progress[t.id].nextReview <= todayStr) dueReviews.push(t); }); });
+
+            // Today reminders
+            const todayReminders = window._reminders.filter(r => r.type === 'day' || r.date === todayStr);
+
+            // ── Personalization from onboarding ──
+            const _ob = state.onboardingData || {};
+            const _userName = _ob.nome ? _ob.nome.split(' ')[0] : '';
+            const _provaDate = _ob.provaData ? new Date(_ob.provaData + 'T00:00:00') : null;
+            const _daysToProva = _provaDate ? Math.max(0, Math.ceil((_provaDate - today) / (1000*60*60*24))) : null;
+            const _totalWeeks = _ob.weekCount || state.weeks.length;
+            const _provaFmt = _provaDate ? _provaDate.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' }) : null;
+            const _greeting = _userName ? `Bom estudo, ${_userName}! 🎯` : 'Bom estudo! 🎯';
+            const _subtitle = _provaFmt
+                ? `Sua prova é em <span class="text-emerald-400 font-bold">${_provaFmt}</span> — faltam <span class="text-yellow-400 font-bold">${_daysToProva} dias</span>.`
+                : 'Mantenha a sua ofensiva diária para garantir o ritmo perfeito.';
+
+            let html = `<div class="max-w-3xl mx-auto">`;
+            
+            // Header card
+            html += `<div class="bg-slate-900 text-white rounded-3xl p-8 mb-8 shadow-xl">
+                <div class="text-sm text-slate-400 font-bold uppercase tracking-widest mb-1">${fmt(today)}</div>
+                <h1 class="text-3xl font-black mb-2">${_greeting}</h1>
+                <div class="flex gap-6 mt-4">
+                    <div><div class="text-[9px] text-slate-400 uppercase font-black tracking-widest">Semana</div><div class="text-2xl font-black text-white">${currentWeek ? currentWeek.week : '-'} <span class="text-xs text-slate-500 font-normal">/ ${_totalWeeks}</span></div></div>
+                    <div><div class="text-[10px] text-slate-400 uppercase font-bold">Questões Hoje</div><div class="text-2xl font-black text-green-400">${todayQ}</div></div>
+                    <div><div class="text-[9px] text-slate-400 uppercase font-black tracking-widest">Revisões Pendentes</div><div class="text-2xl font-black text-yellow-400">${dueReviews.length}</div></div>${_daysToProva !== null ? `<div class="pl-4 border-l border-slate-700"><div class="text-[9px] text-slate-400 uppercase font-black tracking-widest">Dias para Prova</div><div class="text-2xl font-black text-orange-400">${_daysToProva}</div></div>` : ''}
+                </div>
+            </div>`;
+
+            // Lembretes do dia
+            if (todayReminders.length > 0) {
+                html += `<div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 mb-6">
+                    <h3 class="font-black text-sm text-yellow-800 mb-3 flex items-center gap-2"><i class="fas fa-bell"></i> Lembretes de Hoje</h3>
+                    <div class="space-y-2">`;
+                todayReminders.forEach(r => { html += `<div class="text-xs text-yellow-700 font-medium flex items-center gap-2"><i class="fas fa-circle text-yellow-400" style="font-size:6px"></i>${r.text}</div>`; });
+                html += `</div></div>`;
+            }
+
+            // Tarefas do dia
+            html += `<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+                <h3 class="font-black text-slate-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide"><i class="fas fa-tasks text-blue-600"></i> Estudar Hoje (Semana ${currentWeek ? currentWeek.week : '-'})</h3>`;
+            
+            if (todayTasks.length === 0) {
+                html += `<div class="text-center py-8 text-gray-400 text-xs italic">Todas as tarefas desta semana estão concluídas! 🎉</div>`;
+            } else {
+                html += `<div class="space-y-2">`;
+                todayTasks.slice(0, 8).forEach(t => {
+                    const isCrucial = (state.progress[t.id] || {}).crucial;
+                    html += `<div class="flex items-center gap-3 p-3 rounded-xl ${isCrucial ? 'bg-red-50 border border-red-100' : 'bg-gray-50 border border-gray-100'} hover:shadow-sm transition cursor-pointer" onclick="activeWeek=${currentWeek ? currentWeek.week : 1}; switchView('week');">
+                        ${isCrucial ? '<span class="text-lg leading-none">🔥</span>' : '<span class="text-lg leading-none text-gray-300">⭕</span>'}
+                        <div>
+                            <div class="font-bold text-xs text-slate-800">${t.subject}</div>
+                            <div class="text-[10px] text-gray-400 uppercase font-bold">${t.category}</div>
+                        </div>
+                    </div>`;
+                });
+                if (todayTasks.length > 8) html += `<div class="text-xs text-gray-400 text-center pt-2">+${todayTasks.length - 8} tarefas restantes nesta semana</div>`;
+                html += `</div>`;
+            }
+            html += `</div>`;
+
+            // Revisões pendentes
+            if (dueReviews.length > 0) {
+                html += `<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+                    <h3 class="font-black text-slate-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide"><i class="fas fa-history text-orange-500"></i> Revisões Pendentes</h3>
+                    <div class="space-y-2">`;
+                dueReviews.slice(0, 5).forEach(t => {
+                    html += `<div class="flex justify-between items-center p-3 rounded-xl bg-orange-50 border border-orange-100 text-xs"><span class="font-bold text-slate-800">${t.subject}</span><button onclick="completeReview('${t.id}'); renderHomepage();" class="text-[10px] bg-white text-orange-600 border border-orange-200 px-3 py-1 rounded-lg font-bold hover:bg-orange-600 hover:text-white transition">Revisado</button></div>`;
+                });
+                html += `</div></div>`;
+            }
+
+            html += `</div>`;
+            content.innerHTML = html;
+        }
+
+        // IMPROVED DAILY STATS: mean including days with zero
+        window.renderDailyStatsWidget = function() {
+            const today = getTodayStr(); const todayCount = state.dailyStats[today] || 0;
+            // Calculate total study days (from start to today)
+            const start = getStartDate(); const now = new Date();
+            const totalDays = Math.max(1, Math.floor((now - start) / (1000*60*60*24)) + 1);
+            const entries = Object.values(state.dailyStats); const total = entries.reduce((a, b) => a + b, 0);
+            const average = Math.round(total / totalDays);
+            
+            // Per-internship stats: sum questions done on tasks belonging to that phase,
+            // divided by number of calendar days elapsed in that phase (up to today)
+            const phaseStats = {};
+            const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+
+            state.weeks.forEach(w => {
+                if (!phaseStats[w.phase]) phaseStats[w.phase] = { done: 0, elapsedDays: 0 };
+                // Sum questions done on each task in this week
+                w.tasks.forEach(t => {
+                    const p = state.progress[t.id] || {};
+                    phaseStats[w.phase].done += parseInt(p.done) || 0;
+                });
+                // Count elapsed days in this week (days from week start up to today, max 7)
+                const sd5 = getStartDate(); const weekStart = new Date(sd5); weekStart.setDate(sd5.getDate() + (w.week - 1) * 7); weekStart.setHours(0,0,0,0);
+                const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(0,0,0,0);
+                if (todayDate >= weekStart) {
+                    const endBound = todayDate < weekEnd ? todayDate : weekEnd;
+                    const daysElapsed = Math.floor((endBound - weekStart) / (1000*60*60*24)) + 1;
+                    phaseStats[w.phase].elapsedDays += daysElapsed;
+                }
+            });
+            
+            let phaseHtml = '';
+            const uniquePhases = [...new Set(state.weeks.map(w => w.phase))];
+            uniquePhases.forEach(phase => {
+                const pd = phaseStats[phase] || { done: 0, elapsedDays: 1 };
+                const avg = pd.elapsedDays > 0 ? Math.round(pd.done / pd.elapsedDays) : 0;
+                const shortName = phase.replace('Internato ', '');
+                phaseHtml += `<div class="flex justify-between items-center text-[10px] border-b border-gray-50 pb-1 last:border-0"><span class="text-gray-500 truncate max-w-[110px]">${shortName}</span><span class="font-black text-slate-700">${avg} <span class="text-gray-400 font-normal">q/dia</span></span></div>`;
+            });
+
+            return `<div class="bg-white p-5 rounded-2xl shadow-md border border-gray-100 h-full flex flex-col justify-start relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-full -mr-10 -mt-10 opacity-50"></div>
+                <div class="flex items-center gap-3 mb-4 font-bold text-slate-800 relative z-10"><div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600">✏️</div> Registro Diário</div>
+                <div class="flex gap-2 mb-3 relative z-10">
+                    <input type="date" id="stats-date" value="${today}" class="border border-gray-200 rounded-xl px-3 py-2 text-xs bg-gray-50 outline-none w-full focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition">
+                    <input type="number" id="stats-count" placeholder="Qtd" class="w-20 border border-gray-200 rounded-xl px-3 py-2 text-xs bg-gray-50 outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition">
+                </div>
+                <button onclick="addDailyQuestions()" class="bg-slate-900 text-white w-full py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition shadow-lg shadow-slate-900/10 mb-4 relative z-10">Registrar Questões</button>
+                <div class="flex justify-between text-xs border-t border-gray-100 pt-3 mb-4 relative z-10">
+                    <div class="text-center flex-1 border-r border-gray-100"><span class="text-gray-400 block text-[9px] uppercase font-bold tracking-wider">Hoje</span><b class="text-slate-900 text-lg">${todayCount}</b></div>
+                    <div class="text-center flex-1"><span class="text-gray-400 block text-[9px] uppercase font-bold tracking-wider">Média (todos dias)</span><b class="text-blue-600 text-lg">${average}</b></div>
+                </div>
+                <div class="border-t border-gray-100 pt-3 relative z-10">
+                    <div class="text-[9px] uppercase font-bold text-gray-400 tracking-widest mb-2">Questões por Internato</div>
+                    <div class="space-y-1">${phaseHtml}</div>
+                </div>
+            </div>`;
+        }
+
+        updateUI();
+    </script>
+
+    <!-- PROFILE MODAL -->
+    <div id="profile-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-[200] backdrop-blur-sm" onclick="if(event.target===this)closeProfileModal()">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm m-4 border border-gray-200 overflow-hidden" style="animation:scaleIn .25s ease">
+            <!-- Header -->
+            <div class="p-8 text-center relative" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+                <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                <div id="pm-avatar" class="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl font-black text-white shadow-xl border-4 border-emerald-500/40" style="background:linear-gradient(135deg,#10b981,#059669)">?</div>
+                <div id="pm-name" class="text-xl font-black text-white mb-1">Carregando...</div>
+                <div id="pm-email" class="text-xs text-slate-400 font-medium">—</div>
+                <div class="mt-4 inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-full">
+                    <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span class="text-emerald-400 text-xs font-bold">Acesso Ativo</span>
+                </div>
+            </div>
+            <!-- Stats -->
+            <div class="p-6 border-b border-gray-100">
+                <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Seu Progresso</h4>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="text-center p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                        <div id="pm-tasks" class="text-2xl font-black text-emerald-700">0</div>
+                        <div class="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Concluídas</div>
+                    </div>
+                    <div class="text-center p-3 bg-blue-50 rounded-2xl border border-blue-100">
+                        <div id="pm-questions" class="text-2xl font-black text-blue-700">0</div>
+                        <div class="text-[9px] font-bold text-blue-600 uppercase tracking-wider mt-0.5">Questões</div>
+                    </div>
+                    <div class="text-center p-3 bg-orange-50 rounded-2xl border border-orange-100">
+                        <div id="pm-streak" class="text-2xl font-black text-orange-600">0</div>
+                        <div class="text-[9px] font-bold text-orange-500 uppercase tracking-wider mt-0.5">Dias Seguidos</div>
+                    </div>
+                </div>
+                <!-- Global progress bar -->
+                <div class="mt-4">
+                    <div class="flex justify-between text-[10px] font-bold text-gray-500 mb-1.5">
+                        <span>Progresso Geral</span>
+                        <span id="pm-percent">0%</span>
+                    </div>
+                    <div class="bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                        <div id="pm-progress-bar" class="h-2.5 rounded-full transition-all duration-1000" style="width:0%;background:linear-gradient(90deg,#10b981,#34d399)"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Cloud status -->
+            <div class="px-6 pb-2">
+                <div id="pm-cloud-status" class="text-center text-xs text-gray-400 font-medium py-2 bg-gray-50 rounded-xl border border-gray-100">☁️ Sincronizado</div>
+            </div>
+            <!-- Actions -->
+            <div class="p-6 pt-3 space-y-3">
+                <button onclick="handleProfileLogout()" class="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-bold text-sm bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition">
+                    <i class="fas fa-sign-out-alt"></i> Sair da conta
+                </button>
+                <button onclick="closeProfileModal()" class="w-full py-3 rounded-2xl font-bold text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 transition text-xs">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes scaleIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+    </style>
+
+    <script>
+        // ══════════════════════════════════════════════════════════════════════
+        // SUPABASE — AUTH + CLOUD SAVE/LOAD
+        // ══════════════════════════════════════════════════════════════════════
+        const SB_URL = 'https://pdfzoimdonoikrhtwmym.supabase.co';
+        const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZnpvaW1kb25vaWtyaHR3bXltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2OTUxMDYsImV4cCI6MjA5MTI3MTEwNn0.xy7MNY0U9hawd4Lvz6pFq4x4gVyQAbcPoTXoCbiIpdw';
+
+        const { createClient } = supabase;
+        window._sb = createClient(SB_URL, SB_KEY);
+        window._profileData = { name: 'Usuário', email: '', initials: '?' };
+
+        // Debounce timer for cloud saves
+        let _saveTimer = null;
+        let _saveStatus = 'saved'; // 'saving' | 'saved' | 'error' | 'offline'
+
+        function setSaveStatus(status, msg) {
+            _saveStatus = status;
+            const ind = document.getElementById('cloud-save-indicator');
+            const ico = document.getElementById('cloud-save-icon');
+            const txt = document.getElementById('cloud-save-text');
+            if (!ind) return;
+            ind.className = 'save-indicator ' + status + ' flex';
+            if (status === 'saving') { ico.className = 'fas fa-circle-notch fa-spin text-xs'; txt.textContent = 'Salvando...'; }
+            if (status === 'saved')  { ico.className = 'fas fa-cloud-check text-xs'; txt.textContent = 'Salvo'; }
+            if (status === 'error')  { ico.className = 'fas fa-exclamation-triangle text-xs'; txt.textContent = msg || 'Erro'; }
+            if (status === 'offline'){ ico.className = 'fas fa-wifi-slash text-xs'; txt.textContent = 'Offline'; }
+        }
+
+        // ── SAVE TO CLOUD (debounced 2s) ──────────────────────────────────────
+        window._saveToCloud = async function() {
+            if (!window._sb) return;
+            const { data: { user } } = await window._sb.auth.getUser();
+            if (!user) return;
+            setSaveStatus('saving');
+            try {
+                const { error } = await window._sb.from('cronogramas').upsert({
+                    user_id: user.id,
+                    state_data: state
+                });
+                if (error) throw error;
+                setSaveStatus('saved');
+            } catch(e) {
+                console.warn('Cloud save failed:', e);
+                setSaveStatus('error', 'Erro ao salvar');
+            }
+        }
+
+        // Override the existing save() to also trigger cloud save
+        const _originalSave = window.save;
+        window.save = function(skipStack) {
+            _originalSave && _originalSave(skipStack);
+            // Debounce cloud save — only fires 2s after last change
+            clearTimeout(_saveTimer);
+            setSaveStatus('saving');
+            _saveTimer = setTimeout(() => { window._saveToCloud(); }, 2000);
+        }
+
+        // ── LOAD FROM CLOUD ───────────────────────────────────────────────────
+        window._loadFromCloud = async function(user) {
+            try {
+                const { data, error } = await window._sb.from('cronogramas')
+                    .select('state_data').eq('user_id', user.id).single();
+
+                if (error || !data) {
+                    console.log('No cloud save found, using localStorage/default');
+                    return false;
+                }
+
+                const cloudState = data.state_data;
+
+                // Use cloud state if it has weeks data
+                if (cloudState && Array.isArray(cloudState.weeks) && cloudState.weeks.length > 0) {
+                    // Check if cloud is newer than local
+                    const localRaw = localStorage.getItem(STORAGE_KEY);
+                    if (localRaw) {
+                        const local = JSON.parse(localRaw);
+                        // Use cloud state — it's the source of truth
+                        state = cloudState;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                        console.log('Loaded state from cloud ✅', state.weeks.length, 'weeks');
+                    } else {
+                        state = cloudState;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                        console.log('Loaded state from cloud (no local) ✅');
+                    }
+                    return true;
+                }
+                return false;
+            } catch(e) {
+                console.warn('Cloud load failed:', e);
+                return false;
+            }
+        }
+
+        // ── AUTH INIT ─────────────────────────────────────────────────────────
+        (async function initAuth() {
+            const { data: { session } } = await window._sb.auth.getSession();
+
+            if (!session) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const user = session.user;
+
+            // Check access + onboarding
+            const { data: profile } = await window._sb.from('profiles')
+                .select('acesso_liberado, nome, email').eq('id', user.id).single();
+
+            if (!profile || !profile.acesso_liberado) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Check onboarding
+            const { data: ob } = await window._sb.from('onboarding')
+                .select('completed').eq('user_id', user.id).single();
+
+            if (!ob || !ob.completed) {
+                window.location.href = 'onboarding.html';
+                return;
+            }
+
+            // Load profile info for UI
+            const name     = profile.nome || user.email?.split('@')[0] || 'Usuário';
+            const email    = profile.email || user.email || '';
+            const initials = name.slice(0, 2).toUpperCase();
+            window._profileData = { name, email, initials };
+
+            // Update header
+            const avatarEl    = document.getElementById('profile-avatar');
+            const nameShortEl = document.getElementById('profile-name-short');
+            if (avatarEl)    avatarEl.textContent    = initials;
+            if (nameShortEl) nameShortEl.textContent = name.split(' ')[0];
+
+            // Load cloud state THEN init
+            const cloudLoaded = await window._loadFromCloud(user);
+            if (!cloudLoaded) {
+                // initState will use localStorage or defaults
+                window.initState();
+            } else {
+                // State already loaded from cloud — just update UI
+                window.enforceCrucialStatus && window.enforceCrucialStatus();
+                window.updateUI && window.updateUI();
+                setSaveStatus('saved');
+            }
+
+            // Listen for sign out
+            window._sb.auth.onAuthStateChange((event) => {
+                if (event === 'SIGNED_OUT') window.location.href = 'index.html';
+            });
+
+        })();
+
+        // ── PROFILE MODAL ─────────────────────────────────────────────────────
+        window.openProfileModal = function() {
+            const pd = window._profileData;
+
+            // Compute stats
+            let completedTasks = 0, totalTasks = 0, totalQ = 0;
+            state.weeks.forEach(w => {
+                w.tasks.forEach(t => {
+                    totalTasks++;
+                    if (state.progress[t.id]?.doneStatus) completedTasks++;
+                });
+            });
+            totalQ = Object.values(state.dailyStats).reduce((a,b) => a+b, 0);
+            const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+            // Streak
+            let streak = 0; let d = new Date();
+            while(true) {
+                let s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                if (state.dailyStats[s] > 0) { streak++; d.setDate(d.getDate()-1); }
+                else if (s === window.getTodayStr()) { d.setDate(d.getDate()-1); }
+                else break;
+            }
+
+            // Set modal values
+            const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+            const setStyle = (id, prop, val) => { const el = document.getElementById(id); if(el) el.style[prop] = val; };
+
+            document.getElementById('pm-avatar').textContent = pd.initials;
+            set('pm-name',         pd.name);
+            set('pm-email',        pd.email);
+            set('pm-tasks',        completedTasks);
+            set('pm-questions',    totalQ);
+            set('pm-streak',       streak);
+            set('pm-percent',      pct + '%');
+            setStyle('pm-progress-bar', 'width', pct + '%');
+
+            // Cloud status
+            const pmCloud = document.getElementById('pm-cloud-status');
+            if (pmCloud) {
+                pmCloud.textContent = _saveStatus === 'saved' ? '☁️ Sincronizado' : _saveStatus === 'saving' ? '🔄 Sincronizando...' : '⚠️ Erro de sincronização';
+            }
+
+            const modal = document.getElementById('profile-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        window.closeProfileModal = function() {
+            document.getElementById('profile-modal').classList.add('hidden');
+            document.getElementById('profile-modal').classList.remove('flex');
+        }
+
+        window.handleProfileLogout = async function() {
+            if (window._sb) await window._sb.auth.signOut();
+            window.location.href = 'index.html';
+        }
+    </script>
+
+</body>
+</html>
